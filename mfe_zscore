@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+
+#
+#
+#           mfe_zscore
+#           Compute the zscores of the predicted minimum free energy
+#           of a number of RNA sequences.
+#
+#
+#           Daniel Jones <dcjones@cs.washington.edu>
+#           2010.05.19
+#
+#
+
+
+import subprocess
+import re
+import ushuffle
+from scipy.stats import z as zscore
+from sys import (argv,stderr,stdout,stdin)
+import Bio.SeqIO
+
+
+
+def shuffle_seq( seq, m=100, k=2 ):
+    '''
+    Use ushuffle to produce m shuffled sequences that preserve k-nucleotide
+    frequency.
+    '''
+
+    ushuffle.shuffle1( seq, len(seq), k )
+    return [ ushuffle.shuffle2() for _ in range(m) ]
+
+
+
+def mfe( seq ):
+    proc = subprocess.Popen( [ 'RNAfold', '-noPS' ],
+            stdin  = subprocess.PIPE,
+            stdout = subprocess.PIPE )
+
+    (out,err) = proc.communicate(seq)
+    mat = re.search( r'([-+]?\d+(\.\d+)?)', out.split('\n')[1] )
+    assert mat
+
+    return float(mat.group(1))
+
+
+
+def mfe_zscore( seq, m=100, k=2 ):
+    '''
+    Compute the mfe zscore of seq, shuffling m times, while preserving
+    k-nucleotide frequency.
+    '''
+
+    ref_mfe  = mfe(seq)
+    shuf_mfe = map( mfe, shuffle_seq(seq,m,k) )
+
+    return zscore( shuf_mfe, ref_mfe )
+
+
+
+def usage():
+    stderr.write('Usage: mfe_zscores seqs.fa m k\n\n')
+    stderr.write('Compute zscores for the predicted minimum free energy\n')
+    stderr.write('for each sequence in a fasta file, shuffling m times\n')
+    stderr.write('and preserving k-nucleotide frequency.\n')
+
+
+if __name__ == '__main__':
+    if len(argv) < 4:
+        usage()
+        exit(1)
+
+    seq_file = argv[1]
+    m        = int(argv[2])
+    k        = int(argv[3])
+
+    for seq_obj in Bio.SeqIO.parse( open(seq_file), 'fasta' ):
+        seq = seq_obj.seq.tostring()
+        stdout.write( '%e\n' % mfe_zscore(seq) )
+
