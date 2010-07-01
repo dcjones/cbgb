@@ -164,10 +164,6 @@ void table_inc( struct table* T, bam1_t* read )
     while(u) {
         if( memeq( u->seq, bam1_seq(read), T->read_len ) ) {
 
-            if( u->tid != read->core.tid || u->pos != read->core.pos ) {
-                fputs( "Warning: inconsistant mapping found.\n", stderr );
-            }
-
             if( bam1_strand(read) == 1 ) u->pos_count++;
             else                         u->neg_count++;
             return;
@@ -179,8 +175,6 @@ void table_inc( struct table* T, bam1_t* read )
     u = malloc(sizeof(struct hashed_value));
     u->seq = malloc(T->read_bytes);
     memcpy( u->seq, bam1_seq(read), T->read_bytes );
-    u->tid    = read->core.tid;
-    u->pos    = read->core.pos;
 
     if( bam1_strand(read) == 1 ) { u->pos_count = 1; u->neg_count = 0; }
     else                         { u->pos_count = 0; u->neg_count = 1; }
@@ -240,6 +234,15 @@ void rehash( struct table* T, size_t new_n )
     T->min_m = T->n*MIN_LOAD;
 }
 
+int comp_hashed_value( const void* x, const void* y )
+{
+    struct hashed_value* const * a = x;
+    struct hashed_value* const * b = y;
+
+    if( (*a)->pos_count + (*a)->neg_count < (*b)->pos_count + (*b)->neg_count ) return 1;
+    if( (*a)->pos_count + (*a)->neg_count > (*b)->pos_count + (*b)->neg_count ) return -1;
+    return 0;
+}
 
 
 int comp_hashed_value_pos( const void* x, const void* y )
@@ -263,6 +266,27 @@ int comp_hashed_value_neg( const void* x, const void* y )
 }
 
 void sort_by_count( struct table* T,
+                    struct hashed_value*** S_ )
+{
+    struct hashed_value** S = malloc( sizeof(struct hashed_value*) * T->m );
+    memset( S, 0, sizeof(struct hashed_value*) * T->m );
+
+    struct hashed_value* j;
+    size_t i,k;
+    for( i=0, k=0; i < T->n; i++ ) {
+        j = T->A[i];
+        while( j ) {
+            S[k] = j;
+            k++;
+            j = j->next;
+        }
+    }
+
+    qsort( S, T->m, sizeof(struct hashed_value*), comp_hashed_value );
+    *S_ = S;
+}
+
+void sort_by_count_stranded( struct table* T,
                     struct hashed_value*** S_pos_,
                     struct hashed_value*** S_neg_ )
 {

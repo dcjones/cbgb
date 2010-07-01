@@ -12,8 +12,6 @@
 struct hashed_value
 {
     uint8_t* seq;
-    int32_t tid;
-    int32_t pos;
 
     uint32_t pos_count;
     uint32_t neg_count;
@@ -41,10 +39,12 @@ void table_destroy( struct table* T );
 void table_inc( struct table*, bam1_t* read );
 
 
-
 void sort_by_count( struct table* T,
-                    struct hashed_value*** S_pos,
-                    struct hashed_value*** S_neg );
+                    struct hashed_value*** S );
+
+void sort_by_count_stranded( struct table* T,
+                             struct hashed_value*** S_pos,
+                             struct hashed_value*** S_neg );
 
 
 
