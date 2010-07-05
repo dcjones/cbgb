@@ -27,13 +27,13 @@ void print_hashed_value( bam_header_t* header, struct table* T, struct hashed_va
 
 
     if( strand >= 0 ) {
-        fprintf( stdout, "%d\t%s\t%c\n",
-                count,
+        fprintf( stdout, "%s\t%d\t%c\n",
                 seq,
+                count,
                 strand == 0 ? '+' : '-' );
     } 
     else {
-        fprintf( stdout, "%d\t%s\n", count, seq );
+        fprintf( stdout, "%s\t%d\n", seq, count );
     }
 
     
