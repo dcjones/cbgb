@@ -15,100 +15,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
 #include <getopt.h>
-
 #include <samtools/sam.h>
 
 
-/* 
- *  I. Reading/storing tab seperated chromosome length file.
- *  (Like those used by UCSC and BEDTools.)
- */
 
-typedef struct _chrom_size
-{
-    struct _chrom_size* next;
-    char*               chrom;
-    uint32_t            size;
-} chrom_size;
-
-
-void chrom_sizes_push( chrom_size** S, const char* chrom, uint32_t size )
-{
-    chrom_size* T = malloc(sizeof(chrom_size));
-    T->chrom  = strdup(chrom);
-    T->size   = size;
-    T->next   = *S;
-
-    *S = T;
-}
-
-void chrom_sizes_clear( chrom_size** S )
-{
-    chrom_size* T;
-
-    while( *S ) {
-        T = (*S)->next;
-        free((*S)->chrom);
-        free(*S);
-        *S = T;
-    }
-}
-
-uint32_t chrom_sizes_get( chrom_size* S, const char* chrom )
-{
-    /* simply linear search: the number of chroms is typicall small */
-    while( S && strcmp( S->chrom, chrom ) ) S = S->next;
-
-    if( S ) return S->size;
-    else    return 0;
-}
-
-
-chrom_size* read_chrom_sizes( const char* fn )
-{
-    fprintf( stderr, "Reading chrom sizes..." );
-
-    FILE* f = fopen( fn, "r" );
-    if( f == NULL ) {
-        fprintf( stderr, "Can't open file '%s'\n", fn );
-        exit(1);
-    }
-
-    size_t buf_size = 16384;
-    char* buf = malloc( sizeof(char) * buf_size );
-
-    size_t n = 0;
-
-    char*    chrom = NULL;
-    uint32_t size;
-
-    chrom_size* cs = NULL;
-
-    while( fgets( buf, buf_size, f ) ) {
-        if( sscanf( buf, "%s\t%d", chrom, &size ) != 2 ) {
-            if( chrom ) {
-                free(chrom);
-                chrom = NULL;
-            }
-            continue;
-        }
-
-        chrom_sizes_push( &cs, chrom, size );
-        chrom = NULL;
-        n++;
-    }
-
-    free(buf);
-    fclose(f);
-
-    fprintf( stderr, "Done. (%d read.)\n", n );
-    return cs;
-}
-
-
-/* II. Run length encoding of an array, to covert the coverage array to bedGraph. */
+/* I. Run length encoding of an array, to covert the coverage array to bedGraph. */
 void print_rle( uint32_t* A, size_t n, const char* chrom )
 {
     size_t i,j;
@@ -131,10 +43,12 @@ void print_rle( uint32_t* A, size_t n, const char* chrom )
 void print_usage()
 {
     fprintf( stderr,
-            "Usage: bamToBedGraph [options] in.bam chrom.sizes\n"
-            "Covert a BAM file to a Bed Graph file\n\n."
-            "options:\n"
-            "  -s, --strand=STRAND    Either '+', '-', or '*', where '*' is both strands.\n" 
+            "Usage: bamToBedGraph [options] in.bam\n"
+            "Covert a BAM file to a Bed Graph file.\n\n"
+            "Options:\n"
+            "  -s, --strand=STRAND        Where STRAND is '+' or '-'. Count only reads aligned\n"
+            "                             to this strand. (By default reads on both strands\n"
+            "                             are counted.)\n"
            );
 }
 
@@ -205,23 +119,18 @@ int main( int argc, char* argv[] )
 
     } while( c != -1 );
 
-    if( argc - optind < 2 ) {
-        fprintf( stderr, "Error: Too few arguments.\n" );
+    if( optind >= argc ) {
         print_usage();
         exit(1);
     }
 
     char* bam_fn   = argv[optind];
-    char* chrom_fn = argv[optind+1];
-
-
-    chrom_size* cs = read_chrom_sizes( chrom_fn ); 
 
 
     samfile_t* bam_f = samopen( bam_fn, "rb", NULL );
 
     if( bam_f == NULL ) {
-        fprintf( "Error: Can't open file '%s'.\n", bam_fn );
+        fprintf( stderr, "Error: Can't open file '%s'.\n", bam_fn );
         exit(1);
     }
 
@@ -231,38 +140,37 @@ int main( int argc, char* argv[] )
     uint32_t* A = NULL;
     size_t    n = 0;
 
-    /* TODO: HOLY FUCK: I don't need to read in a chrom.sizes file. */
-
     while( samread( bam_f, b ) > 0 ) {
+        if( strand == '+' && bam1_strand(b) == 1 ) continue;
+        if( strand == '-' && bam1_strand(b) == 0 ) continue;
+
         if( b->core.tid != curr_tid ) {
             if( curr_tid != -1 ) {
-                print_rle( A, n, bam_f->header->targen_name[curr_tid] );
+                print_rle( A, n, bam_f->header->target_name[curr_tid] );
                 free(A);
             }
 
-            n = bam_f->header->target_len[tid];
+            curr_tid = b->core.tid;
+
+            n = bam_f->header->target_len[curr_tid];
             A = calloc( n, sizeof(uint32_t) );
             memset( A, 0, n*sizeof(uint32_t) );
 
-            curr_tid = tid;
         }
 
         count_read( b, A, n );
     }
 
     if( curr_tid != -1 ) {
-        print_rle( A, n, bam_f->header->targen_name[curr_tid] );
+        print_rle( A, n, bam_f->header->target_name[curr_tid] );
         free(A);
     }
 
     bam_destroy1(b);
 
     samclose( bam_f );
-    chrom_sizes_clear(&cs);
 
     return 0;
 }
-
-
 
 
