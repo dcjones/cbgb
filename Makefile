@@ -1,7 +1,7 @@
 
 
 
-CFLAGS=-g -Wall -O0
+CFLAGS=-g -Wall -O3
 
 all : bamToBedGraph
 

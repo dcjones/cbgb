@@ -63,8 +63,6 @@ void count_read( bam1_t* b, uint32_t* A, size_t n )
     uint8_t  op;
     uint32_t len;
 
-    /* TODO: must I do something else to handle strand properly?? */
-
     for( i = 0; i < b->core.n_cigar; i++ ) {
         op  = cigar[i] & BAM_CIGAR_MASK;
         len = cigar[i] >> BAM_CIGAR_SHIFT;
