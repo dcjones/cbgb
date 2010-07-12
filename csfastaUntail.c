@@ -54,7 +54,7 @@ void printn_quals( FILE* out, const char* name, const char* seq, int k )
             fputc( *seq, out );
             seq++;
         }
-        if( k ) fputc( ' ', out );
+        fputc( ' ', out );
     }
 
     fputc( '\n', out );
