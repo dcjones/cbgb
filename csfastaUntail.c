@@ -98,7 +98,6 @@ int main( int argc, char* argv[] )
         }
 
         k = poly_tail( read_seq );
-        fprintf( stderr, "%d\n", k );
 
         if( k < 0 ) continue;
 
