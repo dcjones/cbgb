@@ -39,7 +39,7 @@ int poly_tail( const char* seq )
     while( i >= 0 && (seq[i] == '0' || seq[i] == '.') ) i--;
 
     if( i == n-1 ) return -1;
-    else           return  i;
+    else           return  i-1;  /* -1 to ignore than last non-0 color as well */
 }
 
 
