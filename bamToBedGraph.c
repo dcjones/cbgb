@@ -46,6 +46,7 @@ void print_usage()
             "Usage: bamToBedGraph [options] in.bam\n"
             "Covert a BAM file to a Bed Graph file.\n\n"
             "Options:\n"
+            "  -t, --starts               Plot read starts rather than coverage.\n"
             "  -s, --strand=STRAND        Where STRAND is '+' or '-'. Count only reads aligned\n"
             "                             to this strand. (By default reads on both strands\n"
             "                             are counted.)\n"
@@ -91,24 +92,29 @@ void count_read( bam1_t* b, uint32_t* A, size_t n )
 int main( int argc, char* argv[] )
 {
     char strand = '*';
+    bool starts = false;
 
 
     /* 1. Parse Args */
 
     static struct option long_options[] = {
+        {"starts", 1, 0, 0},
         {"strand", 1, 0, 0},
         {0,0,0,0} };
 
     int c, option_index;
     do {
-        c = getopt_long( argc, argv, "s:", long_options, &option_index );
+        c = getopt_long( argc, argv, "ts:", long_options, &option_index );
 
-        if( c == 's' || (c == 0 && option_index == 0) ) {
+        if( c == 's' || (c == 0 && option_index == 1) ) {
             strand = optarg[0];
             if( strand != '-' && strand != '+' && strand != '*' ) {
                 fprintf( stderr, "Error: Invalid strand: %c\n", strand );
                 exit(1);
             }
+        }
+        else if( c == 't' || (c == 0 && option_index == 0) ) {
+            starts = true;
         }
         else if( c == '?' ) {
             print_usage();
@@ -156,7 +162,8 @@ int main( int argc, char* argv[] )
 
         }
 
-        count_read( b, A, n );
+        if( starts ) count_read( b, A, n );
+        else         A[b->core.pos]++;
     }
 
     if( curr_tid != -1 ) {
