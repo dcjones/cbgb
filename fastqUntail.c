@@ -98,7 +98,7 @@ int main( int argc, char* argv[] )
     pat[offset]   = '$';
     pat[offset+1] = '\0';
 
-    fprintf( stderr, "Compiling regex: '%s'\n", pat+1 );
+    /*fprintf( stderr, "Compiling regex: '%s'\n", pat+1 );*/
 
     regex_t suf_re;
     if( regcomp( &suf_re, pat+1, REG_ICASE | REG_EXTENDED ) ) {
@@ -108,7 +108,7 @@ int main( int argc, char* argv[] )
     pat[0] = '^';
     pat[offset] = '\0';
 
-    fprintf( stderr, "Compiling regex: '%s'\n", pat );
+    /*fprintf( stderr, "Compiling regex: '%s'\n", pat );*/
 
     regex_t pre_re;
     if( regcomp( &pre_re, pat, REG_ICASE | REG_EXTENDED ) ) {
