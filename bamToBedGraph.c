@@ -162,8 +162,8 @@ int main( int argc, char* argv[] )
 
         }
 
-        if( starts ) count_read( b, A, n );
-        else         A[b->core.pos]++;
+        if( !starts ) count_read( b, A, n );
+        else          A[b->core.pos]++;
     }
 
     if( curr_tid != -1 ) {
