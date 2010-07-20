@@ -13,21 +13,23 @@
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <regex.h>
 
 void usage()
 {
     fprintf( stderr,
              "Usage: fastaqUntail [OPTIONS] in.fastq\n"
-             "Trim particular nucleotides of either end of a read.\n"
+             "Trim poly-A/T/C/G stretches from either end of a read.\n"
              "Options:\n"
+             "-m            minimum prefix/suffix length (default: 4)\n"
              "-5            trim 5' end\n"
              "-3            trim 3' end\n"
-             "-n nt         trim the given nucleotides (default 'ATN')\n"
+             "-n nt         trim the given nucleotides (default: 'AT')\n"
              );
 }
 
 
-const char* all_nt = "ATN";
+const char* all_nt = "AT";
 
 
 /* is a character in a string */
@@ -44,9 +46,10 @@ bool is_in( char c, char* S )
 
 int main( int argc, char* argv[] )
 {
-    const char* optstring = "53n:";
+    const char* optstring = "53n:m:";
     char* nt = NULL;
     int c;
+    int m = 4;
 
     bool trim_5 = false, trim_3 = false;
 
@@ -62,6 +65,9 @@ int main( int argc, char* argv[] )
             case 'n':
                 nt = strdup(optarg);
                 break;
+            case 'm':
+                m = atoi(optarg);
+                break;
         }
 
     } while( c != -1 );
@@ -72,6 +78,45 @@ int main( int argc, char* argv[] )
         usage();
         exit(1);
     }
+
+
+    /* build prefix and suffix regular expressions */
+    char pat[512];
+
+    int offset=1;
+
+    offset += sprintf( pat+1, "([%cN]{%d,}", nt[0], m );
+
+    char* s = nt+1;
+    while( *s ) {
+        offset += sprintf( pat+offset, "|[%cN]{%d,}", *s, m );
+        s++;
+    }
+
+
+    pat[offset++] = ')';
+    pat[offset]   = '$';
+    pat[offset+1] = '\0';
+
+    fprintf( stderr, "Compiling regex: '%s'\n", pat+1 );
+
+    regex_t suf_re;
+    if( regcomp( &suf_re, pat+1, REG_ICASE | REG_EXTENDED ) ) {
+        fprintf( stderr, "Regular expression failed to compile. Sorry, please report this.\n" );
+    }
+
+    pat[0] = '^';
+    pat[offset] = '\0';
+
+    fprintf( stderr, "Compiling regex: '%s'\n", pat );
+
+    regex_t pre_re;
+    if( regcomp( &pre_re, pat, REG_ICASE | REG_EXTENDED ) ) {
+        fprintf( stderr, "Regular expression failed to compile. Sorry, please report this.\n" );
+    }
+
+
+
 
     FILE* f = fopen( argv[optind], "r" );
     if( f == NULL ) {
@@ -87,6 +132,8 @@ int main( int argc, char* argv[] )
 
     int i,j,n;
 
+    regmatch_t mat;
+
     while( fgets( id1, max_line_len, f ) &&
            fgets( seq, max_line_len, f ) &&
            fgets( id2, max_line_len, f ) &&
@@ -99,18 +146,20 @@ int main( int argc, char* argv[] )
         }
         
         n = strlen(seq)-1;
+        seq[n] = '\0';
 
         i = 0;   /* 5' trim */
         j = n-1; /* 3' trim */
 
-        if( trim_5 ) {
-            while( i < j && is_in( seq[i], nt ) ) i++;
+        if( trim_5 && regexec( &pre_re, seq, 1, &mat, 0 ) == 0 ) {
+            i = mat.rm_eo;
         }
 
-        if( trim_3 ) {
-            while( j > i && is_in( seq[j], nt ) ) j--;
+        if( trim_3 && regexec( &suf_re, seq+i, 1, &mat, 0 ) == 0 ) {
+            j = mat.rm_so-1;
         }
 
+        
         /* supress untrimmed reads */
         if( i == 0 && j == n-1 ) continue;
 
@@ -120,6 +169,8 @@ int main( int argc, char* argv[] )
     }
 
 
+    regfree(&suf_re);
+    regfree(&pre_re);
     fclose(f);
     free(id1);
     free(seq);
