@@ -98,8 +98,8 @@ int main( int argc, char* argv[] )
     /* 1. Parse Args */
 
     static struct option long_options[] = {
-        {"starts", 1, 0, 0},
-        {"strand", 1, 0, 0},
+        {"starts", no_argument, 0, 0},
+        {"strand", required_argument, 0, 0},
         {0,0,0,0} };
 
     int c, option_index;
