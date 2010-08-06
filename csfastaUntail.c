@@ -14,6 +14,9 @@
 #include <ctype.h>
 
 
+const int    MIN_LEN  = 6;
+const double MIN_QUAL = 12.0;
+
 
 void usage()
 {
@@ -31,6 +34,44 @@ FILE* safe_fopen( const char* fn, const char* mode ) {
     return f;
 }
 
+
+/* convert the quals string into an array of doubles, return the number of
+ * qualities extracted. */
+int get_quals( char* in, double* out )
+{
+    int i = 0, j, l = 0;
+    char c;
+    while( in[i] ) {
+        while( isspace(in[i]) ) i++;
+        if( !isdigit(in[i]) ) break;
+        j = i;
+        while( isdigit(in[j]) ) j++;
+
+        c = in[j];
+        in[j] = '\0';
+        out[l++] = atof( in + i );
+        in[j] = c;
+
+        i = j;
+    }
+
+    return l;
+}
+
+double mean_qual( double* quals, size_t i, size_t j )
+{
+    double n = 0.0;
+    double mu = 0.0;
+    while( i <= j ) {
+        mu += quals[i];
+        n++;
+        i++;
+    }
+
+    return mu/n;
+}
+
+
 /* return the offset at which the poly-0 tail begins, or -1 if it has none. */
 int poly_tail( const char* seq )
 {
@@ -44,17 +85,21 @@ int poly_tail( const char* seq )
 
 
 /* print k space seperated quality values from the sequence 'seq'. */
-void printn_quals( FILE* out, const char* name, const char* seq, int k )
+void printn_quals( FILE* out, const char* name, const double* quals, int k )
 {
     fputs( name, out );
-    while( k-- ) {
-        while( isspace(*seq) ) seq++;
 
-        while( !isspace(*seq) ) {
-            fputc( *seq, out );
-            seq++;
+    int i;
+
+    if( k ) {
+
+        fprintf( out, "%d", (int)(quals[0]) );
+        i = 1;
+    
+        while( i < k ) {
+            fprintf( out, " %d", (int)(quals[i]) );
+            i++;
         }
-        fputc( ' ', out );
     }
 
     fputc( '\n', out );
@@ -84,7 +129,10 @@ int main( int argc, char* argv[] )
     qual_name = malloc( buf_size*sizeof(char) );
     qual_seq  = malloc( buf_size*sizeof(char) );
 
+    double* quals = malloc( buf_size*sizeof(double) );
+
     int k;
+    int n;
 
 
     while( fgets( read_name, buf_size, reads_in ) &&
@@ -98,23 +146,26 @@ int main( int argc, char* argv[] )
         }
 
         k = poly_tail( read_seq );
-
         if( k < 0 ) continue;
+
+        n = get_quals( qual_seq, quals );
+        if( mean_qual( quals, k, n-1 ) < MIN_QUAL ) continue;
+
+        if( n - k < MIN_LEN ) continue;
 
         read_seq[k+1] = '\0';
         fprintf( reads_out, "%s%s\n", read_name, read_seq );
 
-        printn_quals( quals_out, qual_name, qual_seq, k );
+        printn_quals( quals_out, qual_name, quals, k );
     }
-
-
-
 
 
     free(read_name);
     free(read_seq);
     free(qual_name);
     free(qual_seq);
+
+    free(quals);
 
     fclose(reads_in);
     fclose(quals_in);
