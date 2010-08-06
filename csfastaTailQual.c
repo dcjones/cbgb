@@ -101,7 +101,7 @@ int main( int argc, char* argv[] )
         k = poly_tail( read_seq );
         n = get_quals( qual_seq, quals );
 
-        if( n - k < 6 ) continue;
+        if( k < 0 || n - k < 6 ) continue;
 
         double mu = mean_qual( quals, k, n-1 );
 
