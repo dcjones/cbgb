@@ -99,10 +99,10 @@ int main( int argc, char* argv[] )
         }
 
         k = poly_tail( read_seq );
-
-        if( k < 5 ) continue;
-
         n = get_quals( qual_seq, quals );
+
+        if( n - k < 6 ) continue;
+
         double mu = mean_qual( quals, k, n-1 );
 
         printf( "%0.5f\n", mu );
