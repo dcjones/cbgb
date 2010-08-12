@@ -8,6 +8,7 @@
  *
  */
 
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -22,9 +23,7 @@ void usage()
              "Trim poly-A/T/C/G stretches from either end of a read.\n"
              "Options:\n"
              "-m            minimum prefix/suffix length (default: 4)\n"
-             "-5            trim 5' end\n"
-             "-3            trim 3' end\n"
-             "-n nt         trim the given nucleotides (default: 'AT')\n"
+             "-s            stranded\n"
              );
 }
 
@@ -46,24 +45,19 @@ bool is_in( char c, char* S )
 
 int main( int argc, char* argv[] )
 {
-    const char* optstring = "53n:m:";
+    const char* optstring = "sm:";
+    bool stranded = false;
     char* nt = NULL;
     int c;
     int m = 4;
 
-    bool trim_5 = false, trim_3 = false;
+    /*bool trim_5 = false, trim_3 = false;*/
 
     do {
         c = getopt( argc, argv, optstring );
         switch(c) {
-            case '5':
-                trim_5 = true;
-                break;
-            case '3':
-                trim_3 = true;
-                break;
-            case 'n':
-                nt = strdup(optarg);
+            case 's':
+                stranded = true;
                 break;
             case 'm':
                 m = atoi(optarg);
@@ -81,41 +75,31 @@ int main( int argc, char* argv[] )
 
 
     /* build prefix and suffix regular expressions */
-    char pat[512];
 
-    int offset=1;
+    char* suf_pat;
+    char* pre_pat;
 
-    offset += sprintf( pat+1, "([%cN]{%d,}", nt[0], m );
+    asprintf( &suf_pat, "A{%d,}$", m );
+    asprintf( &pre_pat, "^T{%d,}", m );
 
-    char* s = nt+1;
-    while( *s ) {
-        offset += sprintf( pat+offset, "|[%cN]{%d,}", *s, m );
-        s++;
-    }
-
-
-    pat[offset++] = ')';
-    pat[offset]   = '$';
-    pat[offset+1] = '\0';
 
     /*fprintf( stderr, "Compiling regex: '%s'\n", pat+1 );*/
 
     regex_t suf_re;
-    if( regcomp( &suf_re, pat+1, REG_ICASE | REG_EXTENDED ) ) {
+    if( regcomp( &suf_re, suf_pat, REG_ICASE | REG_EXTENDED ) ) {
         fprintf( stderr, "Regular expression failed to compile. Sorry, please report this.\n" );
     }
-
-    pat[0] = '^';
-    pat[offset] = '\0';
 
     /*fprintf( stderr, "Compiling regex: '%s'\n", pat );*/
 
     regex_t pre_re;
-    if( regcomp( &pre_re, pat, REG_ICASE | REG_EXTENDED ) ) {
+    if( regcomp( &pre_re, pre_pat, REG_ICASE | REG_EXTENDED ) ) {
         fprintf( stderr, "Regular expression failed to compile. Sorry, please report this.\n" );
     }
 
 
+    free(suf_pat);
+    free(pre_pat);
 
 
     FILE* f = fopen( argv[optind], "r" );
@@ -151,17 +135,38 @@ int main( int argc, char* argv[] )
         i = 0;   /* 5' trim */
         j = n-1; /* 3' trim */
 
-        if( trim_5 && regexec( &pre_re, seq, 1, &mat, 0 ) == 0 ) {
+        if( !stranded && regexec( &pre_re, seq, 1, &mat, 0 ) == 0 ) {
             i = mat.rm_eo;
         }
 
-        if( trim_3 && regexec( &suf_re, seq+i, 1, &mat, 0 ) == 0 ) {
+        if( regexec( &suf_re, seq+i, 1, &mat, 0 ) == 0 ) {
             j = mat.rm_so-1;
         }
 
-        
         /* supress untrimmed reads */
         if( i == 0 && j == n-1 ) continue;
+
+        /* compute mean quality of the regions being trimmed */
+        int u;
+        double q = 0.0;
+        double n_q = 0.0;
+        for( u = 0; u < i; u++ ) {
+            q += (double)(qual[u] - 64);
+            n_q += 1.0;
+        }
+
+        for( u = 0; u < j; u++ ) {
+            q += (double)(qual[n-1-u] - 64);
+            n_q += 1.0;
+        }
+        q /= n_q;
+
+
+        /*fprintf( stderr, "q = %e\n", q );*/
+        /* supress low quality regions */
+        if( q < 30.0 ) continue;
+
+        
 
         seq[j+1] = '\0';
         qual[j+1] = '\0';
