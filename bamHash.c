@@ -5,72 +5,95 @@
 
 void usage()
 {
-    fputs( "Usage: bamHash <reads.bam> [k]\n", stderr );
+    fprintf( stderr,
+            "Usage: bamHash <reads.bam> [k] [d]\n"
+            "Hashes the first k nucleotides of each read and prints counts\n"
+            "in the form:\n"
+            "   seq1   count1\n"
+            "   seq2   count2\n"
+            "If d is specified, produce counts for the sequence and all sequence\n"
+            "within Hamming distance d\n" );
 }
 
+const char* NT = "ATCGN";
 
-void print_hashed_value( bam_header_t* header, struct table* T, struct hashed_value* v, int strand )
-{ 
-    size_t count = 0;
-    if( strand == 0 )       count = v->pos_count;
-    else if( strand == 1 )  count = v->neg_count;
-    else if( strand == -1 ) count = v->pos_count + v->neg_count;
-
-    if( count == 0 ) return;
-
-    char* seq = malloc((sizeof(char)+1) * T->read_len);
+char* bam_seq_to_seq( bam1_t* read )
+{
+    char* seq = malloc(sizeof(char)*(1+read->core.l_qseq));
     int i;
-    for( i = 0; i < T->read_len; i++ ) {
-        seq[i] = bam_nt16_rev_table[bam1_seqi( v->seq, i )];
+    for( i = 0; i < read->core.l_qseq; i++ ) {
+        seq[i] = bam_nt16_rev_table[bam1_seqi( bam1_seq(read), i )];
     }
     seq[i] = '\0';
 
+    return seq;
+}
 
-    if( strand >= 0 ) {
-        fprintf( stdout, "%s\t%d\t%c\n",
-                seq,
-                count,
-                strand == 0 ? '+' : '-' );
-    } 
-    else {
-        fprintf( stdout, "%s\t%d\n", seq, count );
+
+void bam_seq_to_seq_n( bam1_t* read, char* out, size_t n )
+{
+    if( read->core.l_qseq < n ) n = read->core.l_qseq;
+
+    int i;
+    for( i = 0; i < n; i++ ) {
+        out[i] = bam_nt16_rev_table[bam1_seqi( bam1_seq(read), i )];
     }
 
-    
-    free(seq);
+    out[i] = '\0';
 }
-void print_top_reads( bam_header_t* header, struct table* T,
+
+
+
+void print_reads( bam_header_t* header, struct table* T,
                       struct hashed_value** S )
 {
     size_t i;
     for( i = 0; i < T->m; i++ ) {
-        print_hashed_value( header, T, S[i], -1 );
+        fprintf( stdout, "%s\t%llu\n", S[i]->seq, S[i]->count );
     }
 }
 
-void print_top_reads_stranded( bam_header_t* header, struct table* T,
-                               struct hashed_value** S_pos, struct hashed_value** S_neg )
+
+
+uint64_t subst_count( struct table* T, char* seq, size_t d )
 {
-    size_t n = T->m;
+    if( d == 0 ) return 0;
 
-    size_t i=0,j=0;
-    while( i<n || j<n ) {
-        if( j>=n ) {
-            print_hashed_value( header, T, S_pos[i++], 0 );
+    char c;
+    uint64_t n = 0;
+    size_t i, j;
+    for( i = 0; i < T->read_len; i++ ) {
+        c = seq[i];
+
+        for( j = 0; j < 5; j++ ) {
+            if( c == NT[j] ) continue;
+            seq[i] = NT[j];
+            n += table_get( T, seq );
+            n += subst_count( T, seq, d-1 );
         }
-        else if( i>=n ) {
-            print_hashed_value( header, T, S_neg[j++], 1 );
-        }
-        else {
-            if( S_pos[i]->pos_count > S_neg[j]->neg_count )
-                print_hashed_value( header, T, S_pos[i++], 0 );
-            else
-                print_hashed_value( header, T, S_neg[j++], 1 );
-        }
+
+        seq[i] = c;
     }
+
+    return n;
 }
 
 
+void add_cluster_counts( struct table* T, size_t d )
+{
+    size_t i;
+    struct hashed_value *j;
+    for( i = 0; i < T->n; i++ ) {
+        j = T->A[i];
+        while( j ) {
+            j->count += subst_count(T,j->seq,d);
+            j = j->next;
+        }
+        if( i > 0 && i % 100000 == 0 ) {
+            fprintf( stderr, "\t%d reads...\n", i );
+        }
+    }
+}
 
 
 int main( int argc, char* argv[] )
@@ -81,6 +104,7 @@ int main( int argc, char* argv[] )
     }
 
     size_t n = 0;
+    size_t d = 0;
     struct table T;
 
     samfile_t* fp = NULL;
@@ -100,16 +124,21 @@ int main( int argc, char* argv[] )
          * the length */
         samread(fp,read);
         table_create( &T, read->core.l_qseq );
-        table_inc( &T, read );
+        char* tmp = bam_seq_to_seq(read);
+        table_inc( &T, tmp );
+        free(tmp);
         n = 1;
     }
 
+    if( argc > 3 ) d = atoi(argv[3]);
 
 
+    char* seq = malloc(sizeof(char)*(1+T.read_len));
 
     fprintf( stderr, "Reading...\n" );
     while( samread(fp,read) > 0 ) {
-        table_inc( &T, read );
+        bam_seq_to_seq_n( read, seq, T.read_len );
+        table_inc( &T, seq );
         n++;
 
         if( n % 1000000 == 0 ) {
@@ -121,10 +150,17 @@ int main( int argc, char* argv[] )
 
     struct hashed_value** S;
 
+    fprintf( stderr, "Clustering...\n" );
+
+    if( d > 0 ) {
+        add_cluster_counts( &T, d );
+    }
+
     fprintf( stderr, "Sorting...\n" );
+
     sort_by_count( &T, &S );
 
-    print_top_reads( fp->header, &T, S );
+    print_reads( fp->header, &T, S );
 
     free(S);
 

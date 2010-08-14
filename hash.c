@@ -121,7 +121,7 @@ void table_create( struct table* T, size_t read_len )
     T->max_m = T->n * MAX_LOAD;
     T->min_m = T->n * MIN_LOAD;
     T->read_len = read_len;
-    T->read_bytes = ((read_len-1)/2)+1;
+    T->read_bytes = read_len * sizeof(char);
 }
 
 
@@ -153,19 +153,17 @@ void table_destroy( struct table* T )
 
 
 
-void table_inc( struct table* T, bam1_t* read )
+void table_inc( struct table* T, char* seq )
 {
     if( T->m == T->max_m ) rehash( T, T->n*2 );
 
-    uint32_t h = hash(bam1_seq(read), T->read_bytes) % T->n;
+    uint32_t h = hash(seq, T->read_bytes) % T->n;
 
     struct hashed_value* u = T->A[h];
 
     while(u) {
-        if( memeq( u->seq, bam1_seq(read), T->read_len ) ) {
-
-            if( bam1_strand(read) == 1 ) u->pos_count++;
-            else                         u->neg_count++;
+        if( memeq( u->seq, seq, T->read_bytes ) ) {
+            u->count++;
             return;
         }
 
@@ -173,16 +171,30 @@ void table_inc( struct table* T, bam1_t* read )
     }
 
     u = malloc(sizeof(struct hashed_value));
-    u->seq = malloc(T->read_bytes);
-    memcpy( u->seq, bam1_seq(read), T->read_bytes );
+    u->seq = strdup(seq);
 
-    if( bam1_strand(read) == 1 ) { u->pos_count = 1; u->neg_count = 0; }
-    else                         { u->pos_count = 0; u->neg_count = 1; }
+    u->count = 1;
 
     u->next = T->A[h];
     T->A[h] = u;
 
     T->m++;
+}
+
+uint64_t table_get( struct table* T, char* seq )
+{
+    uint32_t h = hash(seq, T->read_bytes) % T->n;
+
+    struct hashed_value* u = T->A[h];
+    while(u) {
+        if( memeq( u->seq, seq, T->read_bytes ) ) {
+            return u->count;
+        }
+
+        u = u->next;
+    }
+
+    return 0;
 }
 
 
@@ -239,29 +251,8 @@ int comp_hashed_value( const void* x, const void* y )
     struct hashed_value* const * a = x;
     struct hashed_value* const * b = y;
 
-    if( (*a)->pos_count + (*a)->neg_count < (*b)->pos_count + (*b)->neg_count ) return 1;
-    if( (*a)->pos_count + (*a)->neg_count > (*b)->pos_count + (*b)->neg_count ) return -1;
-    return 0;
-}
-
-
-int comp_hashed_value_pos( const void* x, const void* y )
-{
-    struct hashed_value* const * a = x;
-    struct hashed_value* const * b = y;
-
-    if( (*a)->pos_count < (*b)->pos_count ) return 1;
-    if( (*a)->pos_count > (*b)->pos_count ) return -1;
-    return 0;
-}
-
-int comp_hashed_value_neg( const void* x, const void* y )
-{
-    struct hashed_value* const * a = x;
-    struct hashed_value* const * b = y;
-
-    if( (*a)->neg_count < (*b)->neg_count ) return 1;
-    if( (*a)->neg_count > (*b)->neg_count ) return -1;
+    if( (*a)->count > (*b)->count ) return -1;
+    if( (*a)->count < (*b)->count ) return 1;
     return 0;
 }
 
@@ -286,35 +277,3 @@ void sort_by_count( struct table* T,
     *S_ = S;
 }
 
-void sort_by_count_stranded( struct table* T,
-                    struct hashed_value*** S_pos_,
-                    struct hashed_value*** S_neg_ )
-{
-    struct hashed_value** S_pos = malloc( sizeof(struct hashed_value*) * T->m );
-    memset( S_pos, 0, sizeof(struct hashed_value*) * T->m );
-
-    struct hashed_value** S_neg = malloc( sizeof(struct hashed_value*) * T->m );
-    memset( S_neg, 0, sizeof(struct hashed_value*) * T->m );
-
-
-    /* read off values from the table */
-    struct hashed_value* j;
-    size_t i,k;
-    for( i=0, k=0; i < T->n; i++ ) {
-        j = T->A[i];
-        while( j ) {
-            S_pos[k] = j;
-            S_neg[k] = j;
-            k++;
-            j = j->next;
-        }
-    }
-
-
-    /* sort */
-    qsort( S_pos, T->m, sizeof(struct hashed_value*), comp_hashed_value_pos );
-    qsort( S_neg, T->m, sizeof(struct hashed_value*), comp_hashed_value_neg );
-
-    *S_pos_ = S_pos;
-    *S_neg_ = S_neg;
-}

@@ -11,10 +11,8 @@
 
 struct hashed_value
 {
-    uint8_t* seq;
-
-    uint32_t pos_count;
-    uint32_t neg_count;
+    char*    seq;
+    uint64_t count;
 
     struct hashed_value* next;
 };
@@ -36,16 +34,11 @@ struct table
 void table_create( struct table* T, size_t read_len );
 void table_destroy( struct table* T );
 
-void table_inc( struct table*, bam1_t* read );
-
+void     table_inc( struct table*, char* seq );
+uint64_t table_get( struct table*, char* seq );
 
 void sort_by_count( struct table* T,
                     struct hashed_value*** S );
-
-void sort_by_count_stranded( struct table* T,
-                             struct hashed_value*** S_pos,
-                             struct hashed_value*** S_neg );
-
 
 
 #endif

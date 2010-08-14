@@ -11,7 +11,7 @@ plot_hashed_reads <- function( in_fn, out_fn ) {
     a <- cbind(a,seq(n))
 
 
-    names(a) <- c('count','seq','i')
+    names(a) <- c('seq','count','i')
 
     #a$count <- a$count / sum(a$count)
 
