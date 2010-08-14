@@ -1,0 +1,42 @@
+#!/usr/bin/python
+
+# 
+#          randseq
+#          -------
+#          A simply program to generate random DNA/RNA sequence.
+#
+#          Daniel Jones
+#          dcjones@cs.washington.deu
+#          April/2010
+#
+
+from random import (uniform,choice)
+from sys import (argv,stderr)
+
+def randseq( n, gc, linebreak=80 ):
+    seq = ''
+
+    for i in xrange(n):
+        if i > 0 and linebreak and i % linebreak == 0:
+            seq += '\n'
+
+        if uniform(0,1) < gc:
+            seq += choice(('G','C'))
+        else:
+            seq += choice(('A','T'))
+
+    return seq
+
+
+
+if __name__ ==  '__main__':
+    if len(argv) < 2:
+        stderr.write( 'Usage: randseq n [gc_perc]\n' )
+        exit(1)
+
+
+    n  = int(argv[1])
+    gc = float(argv[2]) if len(argv) > 2 else 0.5
+
+    print randseq( n, gc )
+
