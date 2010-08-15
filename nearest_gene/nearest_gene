@@ -29,7 +29,7 @@ def gtf_row_from_gtf_line( line ):
     attributes = {}
 
     for mat in re.finditer( r'\s*(\w+)\s+(([\.\w]+)|"([\.\w]+)")\s*;', line[8] ):
-        attributes[mat.group(1)] = mat.group(2) # .strip('"')
+        attributes[mat.group(1)] = mat.group(2).strip('"\'')
 
     return gtf_row( seqname, source, feature, \
                     start, end, score, strand, frame, \
@@ -72,9 +72,9 @@ def bed_row_from_bed_line( line ):
     seqname = line[0]
     start   = int(line[1])
     end     = int(line[2])
-    name    = line[3] if len(line) > 3 else None
-    score   = line[4] if len(line) > 4 else None
-    strand  = line[5] if len(line) > 5 and line[5] in ('+','-') else None
+    name    = line[3] if len(line) > 3 else '.'
+    score   = float(line[4]) if len(line) > 4 else 0.0
+    strand  = line[5] if len(line) > 5 and line[5] in ('+','-') else '.'
 
     return bed_row( seqname, start, end, name, score, strand )
 
@@ -166,20 +166,9 @@ def print_neighbors( neighbors ):
 
 
     for (row,(left,right)) in neighbors.iteritems():
-        stdout.write( '{seqname}\t{start}\t{end}'.format(
-            seqname = row.seqname,
-            start   = row.start,
-            end     = row.end))
 
-        if row.name or row.score or row.strand:
-            stdout.write( '\t%s' % (row.name if row.name else '.') )
-
-        if row.score or row.strand:
-            stdout.write( '\t%s' % (row.score if row.score else '.') )
-
-        if row.strand:
-            stdout.write( '\t%s' % row.strand )
-
+        stdout.write( '%s\t%d\t%d\t%s\t%e\t%s' % \
+                      row[:6] )
 
         stdout.write( '\t%s\t%s\n' % (left,right) )
 

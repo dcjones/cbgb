@@ -8,15 +8,15 @@ import re
 import MySQLdb
 
 
-usage = 'mysqlimport_bed [OPTIONS] database input.bed'
+usage = 'mysqlimport_bed [OPTIONS] database input.bed [N:col_name:col_type ... ]'
 option_list = [ make_option( '-t', '--table', action='store', type='string',
                              dest='table', default=None ) ]
 
 
-bed_row = namedtuple( 'bed_row', 'seqname start end name score strand' )
+bed_row = namedtuple( 'bed_row', 'seqname start end name score strand extra' )
 
 def bed_row_from_bed_line( line ):
-    line = line.split('\t')
+    line = line.strip().split('\t')
     if len(line) < 3:
         raise TypeError
 
@@ -26,8 +26,9 @@ def bed_row_from_bed_line( line ):
     name    = line[3] if len(line) > 3 else ''
     score   = line[4] if len(line) > 4 else 0.0
     strand  = line[5] if len(line) > 5 and line[5] in ('+','-') else '.'
+    extra   = line[6:] if len(line) > 6 else []
 
-    return bed_row( seqname, start, end, name, score, strand )
+    return bed_row( seqname, start, end, name, score, strand, extra )
 
 
 def parse_bed( bed_f ):
@@ -52,24 +53,48 @@ def parse_bed( bed_f ):
 
 
 
-def insert_rows( db, table_name, rows ):
+def insert_rows( db, table_name, rows, extra_cols ):
     c = db.cursor()
 
     c.execute( 'drop table if exists `{table_name}`'.format( table_name = table_name ) )
-    c.execute( 'create table `{table_name}` ( ' \
-               '`chrom` varchar(255) NOT NULL, ' \
-               '`start` int(10) unsigned NOT NULL, ' \
-               '`end` int(10) unsigned NOT NULL, ' \
-               '`name` varchar(255) NOT NULL, ' \
-               '`score` float NOT NULL, ' \
-               '`strand` char(1) NOT NULL, ' \
-               'index (`chrom`, `start`, `end`) )'.format( table_name = table_name ) )
+
+    table_spec = \
+                '( ' \
+                '`chrom` varchar(255) NOT NULL, ' \
+                '`start` int(10) unsigned NOT NULL, ' \
+                '`end` int(10) unsigned NOT NULL, ' \
+                '`name` varchar(255) NOT NULL, ' \
+                '`score` float NOT NULL, ' \
+                '`strand` char(1) NOT NULL'
+
+    for extra_col in extra_cols:
+        table_spec += ', `{name}` {type} NOT NULL'.format( \
+                name = extra_col[1], type =extra_col[2] )
+    table_spec += ', index (`chrom`, `start`, `end`) )'
+
+    c.execute( 'create table `{table_name}` {table_spec}'.format( \
+                    table_name = table_name,
+                    table_spec = table_spec ) )
 
 
-    c.executemany( 'insert into `{table_name}` ' \
-                   '( chrom, start, end, name, score, strand ) ' \
-                   'values (%s, %s, %s, %s, %s, %s)'.format( table_name = table_name ), \
-                   imap( tuple, rows ) )
+    cols = '( `chrom`, `start`, `end`, `name`, `score`, `strand`'
+    for extra_col in extra_cols:
+        cols += ', `' + extra_col[1] + '`'
+    cols += ' )'
+
+
+    q = 'insert into `{table_name}` {cols} ' + \
+                   'values ( ' + \
+                   ', '.join(['%s']*(6+len(extra_cols))) + \
+                   ' )'
+    q = q.format( table_name = table_name, cols = cols )
+
+    for row in rows:
+        row_sub = list(row[:6])
+        for extra_col in extra_cols:
+            row_sub.append( row.extra[int(extra_col[0])-1] )
+        c.execute( q, row_sub )
+
 
 def main():
     optparser = OptionParser( option_list = option_list, usage = usage )
@@ -87,7 +112,8 @@ def main():
     else:
         table_name = re.sub( r'\.bed$', '', args[1].split('/')[-1] )
 
-    insert_rows( db, table_name, rows )
+    extra_cols =  [ c.split(':') for c in args[2:] ]
+    insert_rows( db, table_name, rows, extra_cols )
 
 
 
