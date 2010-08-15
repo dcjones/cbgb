@@ -1,0 +1,99 @@
+#!/usr/bin/env python
+
+from sys         import argv, stdout, stdin, stderr
+from collections import namedtuple, defaultdict
+from optparse    import make_option, OptionParser
+from itertools   import imap
+import re
+import MySQLdb
+
+
+usage = 'mysqlimport_bed [OPTIONS] database input.bed'
+option_list = [ make_option( '-t', '--table', action='store', type='string',
+                             dest='table', default=None ) ]
+
+
+bed_row = namedtuple( 'bed_row', 'seqname start end name score strand' )
+
+def bed_row_from_bed_line( line ):
+    line = line.split('\t')
+    if len(line) < 3:
+        raise TypeError
+
+    seqname = line[0]
+    start   = int(line[1])
+    end     = int(line[2])
+    name    = line[3] if len(line) > 3 else ''
+    score   = line[4] if len(line) > 4 else 0.0
+    strand  = line[5] if len(line) > 5 and line[5] in ('+','-') else '.'
+
+    return bed_row( seqname, start, end, name, score, strand )
+
+
+def parse_bed( bed_f ):
+
+    stderr.write( 'parsing BED ... ' )
+
+    i = 0
+    rows = []
+    for line in bed_f:
+        i += 1
+        try:
+            row = bed_row_from_bed_line(line)
+        except TypeError:
+            stderr.write( 'BED line %d is malformed. Skipping.\n' % i )
+            continue
+
+        rows.append(row)
+
+    stderr.write( 'done (%d rows).\n' % len(rows) )
+
+    return rows
+
+
+
+def insert_rows( db, table_name, rows ):
+    c = db.cursor()
+
+    c.execute( 'drop table if exists `{table_name}`'.format( table_name = table_name ) )
+    c.execute( 'create table `{table_name}` ( ' \
+               '`chrom` varchar(255) NOT NULL, ' \
+               '`start` int(10) unsigned NOT NULL, ' \
+               '`end` int(10) unsigned NOT NULL, ' \
+               '`name` varchar(255) NOT NULL, ' \
+               '`score` float NOT NULL, ' \
+               '`strand` char(1) NOT NULL, ' \
+               'primary key (`chrom`, `start`, `end`) )'.format( table_name = table_name ) )
+
+
+    c.executemany( 'insert into `{table_name}` ' \
+                   '( chrom, start, end, name, score, strand ) ' \
+                   'values (%s, %s, %s, %s, %s, %s)'.format( table_name = table_name ), \
+                   imap( tuple, rows ) )
+
+def main():
+    optparser = OptionParser( option_list = option_list, usage = usage )
+    (options,args) = optparser.parse_args()
+
+    if len(args) < 2:
+        optparser.error( 'Too few arguments.' )
+
+    db = MySQLdb.connect( db = args[0] )
+
+    rows = parse_bed( open(args[1]) )
+
+    if options.table:
+        table_name = options.table
+    else:
+        table_name = re.sub( r'\.bed$', '', args[1].split('/')[-1] )
+
+    insert_rows( db, table_name, rows )
+
+
+
+
+
+if __name__ == '__main__':
+    main()
+
+
