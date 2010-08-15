@@ -1,0 +1,55 @@
+#!/usr/bin/env python
+
+from sys         import argv, stdout, stdin, stderr
+from collections import namedtuple, defaultdict
+from optparse    import make_option, OptionParser
+from itertools   import imap
+import re
+import MySQLdb
+
+
+usage = 'mysqlexport_bed database table1 [table2 ...]'
+option_list = [ ]
+
+bed_row = namedtuple( 'bed_row', 'seqname start end name score strand' )
+
+def get_rows( db, tables ):
+
+    c = db.cursor()
+
+    q = 'select chrom, start, end, name, score, strand from {table}'
+
+    rows = []
+    for table in tables:
+        c.execute( q.format( table=table ) )
+        rows.extend( [ bed_row(*row) for row in c ] )
+
+    return rows
+
+
+def print_rows( rows ):
+    for row in rows:
+        stdout.write( '%s\t%d\t%d\t%s\t%e\t%s\n' % \
+                      (row.seqname, row.start, row.end, \
+                       row.name, row.score, row. strand ) )
+
+
+def main():
+    optparser = OptionParser( option_list = option_list, usage = usage )
+    (options,args) = optparser.parse_args()
+
+    if len(args) < 2:
+        optparser.error( 'Too few arguments.' )
+
+    db_name     = args[0]
+    table_names = args[1:]
+
+    db = MySQLdb.connect( db = db_name )
+
+    rows = get_rows( db, table_names )
+
+    print_rows( rows )
+
+
+if __name__ == '__main__':
+    main()

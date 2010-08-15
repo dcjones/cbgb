@@ -63,7 +63,7 @@ def insert_rows( db, table_name, rows ):
                '`name` varchar(255) NOT NULL, ' \
                '`score` float NOT NULL, ' \
                '`strand` char(1) NOT NULL, ' \
-               'primary key (`chrom`, `start`, `end`) )'.format( table_name = table_name ) )
+               'index (`chrom`, `start`, `end`) )'.format( table_name = table_name ) )
 
 
     c.executemany( 'insert into `{table_name}` ' \
