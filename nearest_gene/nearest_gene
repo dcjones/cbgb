@@ -138,8 +138,8 @@ def nearest_neighbors( gtf_rows, bed_rows, attrib, stranded=False ):
 
     # find neighbors
     stderr.write( '\tsearching ...\n' )
-    upstream   = dict()
-    downstream = dict()
+    left  = dict()
+    right = dict()
     for row in bed_rows:
         if stranded: seq = (row.seqname,row.strand)
         else:        seq = row.seqname
@@ -148,15 +148,24 @@ def nearest_neighbors( gtf_rows, bed_rows, attrib, stranded=False ):
         ends   = annotation_ends[seq]
 
         i = bisect_left( ends, row.start )
-        upstream[row] = annotations[seq][i-1].attributes[attrib] if i > 0 else None
+        if i > 0:
+            gene      = annotations[seq][i-1].attributes[attrib]
+            gene_dist = row.start - annotations[seq][i-1].end
+            left[row] = (gene,gene_dist)
+        else:
+            left[row] = None
+
 
         i = bisect_left( ends, row.start )
-        downstream[row] = annotations[seq][i].attributes[attrib] if i < len(annotations[seq]) else None
+        if i < len(annotations[seq]):
+            gene      = annotations[seq][i].attributes[attrib]
+            gene_dist = annotations[seq][i].start - row.end
+            right[row] = (gene,gene_dist)
 
     # merge
     neighbors = dict()
-    for row in upstream:
-        neighbors[row] = (upstream[row],downstream[row])
+    for row in left:
+        neighbors[row] = (left[row],right[row])
 
     stderr.write( 'done.\n' )
     return neighbors
@@ -167,10 +176,14 @@ def print_neighbors( neighbors ):
 
     for (row,(left,right)) in neighbors.iteritems():
 
+        (left_gene,left_gene_dist)   = left
+        (right_gene,right_gene_dist) = right
+
         stdout.write( '%s\t%d\t%d\t%s\t%e\t%s' % \
                       row[:6] )
 
-        stdout.write( '\t%s\t%s\n' % (left,right) )
+        stdout.write( '\t%s\t%d\t%s\t%d\n' % \
+                (left_gene,left_gene_dist,right_gene,right_gene_dist) )
 
 
 

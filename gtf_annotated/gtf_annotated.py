@@ -1,11 +1,11 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 
 #
-#   gtf_transcripts
+#   gtf_annotated
 #   ---------------
-#   Make a bed file giving the extents of all the transcripts
-#   given in a gtf file.
+#   Make a bed file giving disjoint intervals of all the regions covered by
+#   annotations.
 #
 #
 
@@ -71,7 +71,7 @@ def parse_gtf( gtf_f ):
         if row.feature == 'exon':
             rows.append( row )
 
-    stderr.write( 'done (%d exons).\n' % len(rows) )
+    stderr.write( 'done (%d regions).\n' % len(rows) )
 
     return rows
 
@@ -111,6 +111,62 @@ def get_transcripts( rows ):
 
     return bed_rows
 
+
+
+def get_annotated( rows, stranded=True ):
+
+    # organize by transcript
+
+    stderr.write( 'sorting by position ... ' )
+
+    if stranded:
+        rows.sort( key = lambda row: (row.seqname,row.strand,row.start) )
+    else:
+        rows.sort( key = lambda row: (row.seqname,row.start) )
+
+    stderr.write( 'done.\n' )
+
+
+
+    stderr.write( 'getting annotated regions ... ' )
+
+    bed_rows = []
+
+    last_seq = None
+    i = None
+    j = None
+
+    for row in rows:
+        if stranded:
+            seq = (row.seqname,row.strand)
+        else:
+            seq = row.seqname
+
+        if last_seq != seq:
+            last_seq = seq
+            i = row.start
+            j = row.end
+            continue
+
+        if j >= row.start:
+            j = row.end
+        else:
+            bed_rows.append( bed_row( row.seqname, i-1, j, '.', 0, row.strand ))
+            i = row.start
+            j = row.end
+
+
+
+    if i and j and rows:
+        row = rows[-1]
+        bed_rows.append( bed_row( row.seqname, i-1, j, '.', 0, row.strand ))
+
+    stderr.write( 'done (%d regions).' % len(bed_rows) )
+
+    return bed_rows
+
+
+
 def print_gtf( fout, rows ):
     gtf_str = '{seqname}\t.\ttranscript\t{start}\t{end}\t{score}\t{strand}\t.\tgene_id "{name}"; transcript_id "{name}"\n'
 
@@ -144,8 +200,9 @@ def main():
 
     rows = parse_gtf(stdin)
     transcripts = get_transcripts(rows)
-    #print_bed(stdout,transcripts)
-    print_gtf( stdout, transcripts )
+    annotated   = get_annotated(transcripts)
+    print_bed(stdout,annotated)
+    #print_gtf( stdout, transcripts )
 
 
 

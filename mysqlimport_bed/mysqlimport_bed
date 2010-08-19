@@ -70,7 +70,7 @@ def insert_rows( db, table_name, rows, extra_cols ):
     for extra_col in extra_cols:
         table_spec += ', `{name}` {type} NOT NULL'.format( \
                 name = extra_col[1], type =extra_col[2] )
-    table_spec += ', index (`chrom`, `start`, `end`) )'
+    table_spec += ', primary key (`chrom`, `start`, `end`, `strand`) )'
 
     c.execute( 'create table `{table_name}` {table_spec}'.format( \
                     table_name = table_name,
@@ -83,7 +83,7 @@ def insert_rows( db, table_name, rows, extra_cols ):
     cols += ' )'
 
 
-    q = 'insert into `{table_name}` {cols} ' + \
+    q = 'insert ignore into `{table_name}` {cols} ' + \
                    'values ( ' + \
                    ', '.join(['%s']*(6+len(extra_cols))) + \
                    ' )'
