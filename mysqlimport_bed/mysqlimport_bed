@@ -16,7 +16,7 @@ option_list = [ make_option( '-t', '--table', action='store', type='string',
 bed_row = namedtuple( 'bed_row', 'seqname start end name score strand extra' )
 
 def bed_row_from_bed_line( line ):
-    line = line.strip().split('\t')
+    line = line.strip('\n').split('\t')
     if len(line) < 3:
         raise TypeError
 
@@ -68,7 +68,7 @@ def insert_rows( db, table_name, rows, extra_cols ):
                 '`strand` char(1) NOT NULL'
 
     for extra_col in extra_cols:
-        table_spec += ', `{name}` {type} NOT NULL'.format( \
+        table_spec += ', `{name}` {type}'.format( \
                 name = extra_col[1], type =extra_col[2] )
     table_spec += ', primary key (`chrom`, `start`, `end`, `strand`) )'
 
@@ -93,6 +93,7 @@ def insert_rows( db, table_name, rows, extra_cols ):
         row_sub = list(row[:6])
         for extra_col in extra_cols:
             row_sub.append( row.extra[int(extra_col[0])-1] )
+            if not row_sub[-1]: row_sub[-1] = None
         c.execute( q, row_sub )
 
 

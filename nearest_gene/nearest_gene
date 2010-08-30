@@ -6,6 +6,8 @@ from copy        import copy
 from sys         import argv, stdout, stdin, stderr
 from itertools   import izip
 from bisect      import bisect_left
+from optparse    import make_option, OptionParser
+
 
 gtf_row = namedtuple( 'gtf_row', 'seqname source feature start end ' \
                                  'score strand frame attributes' )
@@ -65,7 +67,7 @@ def parse_gtf( gtf_f ):
 bed_row = namedtuple( 'bed_row', 'seqname start end name score strand' )
 
 def bed_row_from_bed_line( line ):
-    line = line.split('\t')
+    line = line.strip('\n').split('\t')
     if len(line) < 3:
         raise TypeError
 
@@ -74,6 +76,7 @@ def bed_row_from_bed_line( line ):
     end     = int(line[2])
     name    = line[3] if len(line) > 3 else '.'
     score   = float(line[4]) if len(line) > 4 else 0.0
+
     strand  = line[5] if len(line) > 5 and line[5] in ('+','-') else '.'
 
     return bed_row( seqname, start, end, name, score, strand )
@@ -118,6 +121,8 @@ def nearest( xs, y ):
 
 def nearest_neighbors( gtf_rows, bed_rows, attrib, stranded=False ):
 
+    stderr.write( 'stranded = ' + repr(stranded) + '\n' )
+
     stderr.write( 'finding nearest annotation ...\n' )
 
     stderr.write( '\tindexing ...\n' )
@@ -147,7 +152,7 @@ def nearest_neighbors( gtf_rows, bed_rows, attrib, stranded=False ):
         starts = annotation_starts[seq]
         ends   = annotation_ends[seq]
 
-        i = bisect_left( ends, row.start )
+        i = bisect_left( ends, row.start+1 )
         if i > 0:
             gene      = annotations[seq][i-1].attributes[attrib]
             gene_dist = row.start - annotations[seq][i-1].end
@@ -156,11 +161,13 @@ def nearest_neighbors( gtf_rows, bed_rows, attrib, stranded=False ):
             left[row] = None
 
 
-        i = bisect_left( ends, row.start )
+        i = bisect_left( starts, row.end )
         if i < len(annotations[seq]):
             gene      = annotations[seq][i].attributes[attrib]
             gene_dist = annotations[seq][i].start - row.end
             right[row] = (gene,gene_dist)
+        else:
+            right[row] = None
 
     # merge
     neighbors = dict()
@@ -176,35 +183,46 @@ def print_neighbors( neighbors ):
 
     for (row,(left,right)) in neighbors.iteritems():
 
-        (left_gene,left_gene_dist)   = left
-        (right_gene,right_gene_dist) = right
+        (left_gene,left_gene_dist)   = left  if left else ('','')
+        (right_gene,right_gene_dist) = right if right else ('','')
 
         stdout.write( '%s\t%d\t%d\t%s\t%e\t%s' % \
                       row[:6] )
 
-        stdout.write( '\t%s\t%d\t%s\t%d\n' % \
-                (left_gene,left_gene_dist,right_gene,right_gene_dist) )
+        stdout.write( '\t%s\t%s\t%s\t%s\n' % \
+                (left_gene,str(left_gene_dist),right_gene,str(right_gene_dist)) )
 
 
 
-def usage():
-    stderr.write( 'nearest_gene genes.gtf regions.bed [attribute]\n' )
+usage = 'nearest_gene genes.gtf regions.bed [attribute]\n'
+option_list = [ make_option( '-s', '--stranded', action='store_true', default=False,
+                              dest='stranded' ),
+                make_option( '-a', '--attribute', action='store', default='gene_id',
+                             type='string', dest='attribute' ) ]
 
 
 
 def main():
-    if len(argv) < 3:
-        usage()
-        exit(1)
 
-    gtf_fn = argv[1]
-    bed_fn = argv[2]
-    attrib = argv[3] if len(argv) > 3 else 'gene_id'
+    optparser = OptionParser( option_list = option_list, usage = usage )
+    (options,args) = optparser.parse_args()
 
-    gtf_rows = parse_gtf( open(gtf_fn) )
+    if len(args) < 2:
+        optparser.error( 'Too few arguments.' )
+
+    gtf_fn = args[0]
+    bed_fn = args[1]
+
+
+    #attrib = argv[3] if len(argv) > 3 else 'gene_id'
+
+
     bed_rows = parse_bed( open(bed_fn) )
+    gtf_rows = parse_gtf( open(gtf_fn) )
 
-    neighbors = nearest_neighbors( gtf_rows, bed_rows, attrib )
+    neighbors = nearest_neighbors( gtf_rows, bed_rows,
+                                   options.attribute,
+                                   stranded = options.stranded )
 
 
     print_neighbors(neighbors)
