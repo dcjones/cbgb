@@ -144,8 +144,8 @@ def main():
 
     rows = parse_gtf(stdin)
     transcripts = get_transcripts(rows)
-    #print_bed(stdout,transcripts)
-    print_gtf( stdout, transcripts )
+    print_bed(stdout,transcripts)
+    #print_gtf( stdout, transcripts )
 
 
 

@@ -1,0 +1,53 @@
+#!/usr/bin/env python
+
+from sys      import stdin,stdout
+import optparse
+
+options = [ optparse.make_option( '-w', '--width', action='store', dest='width',
+                                  default=80, type='int',
+                                  help='line width for sequence lines' ) ]
+
+usage = 'fastaClean [OPTIONS] [in.fasta]'
+
+
+
+def main():
+    optparser = optparse.OptionParser( option_list = options, usage = usage )
+    (opts,args) = optparser.parse_args()
+
+    if len(args) > 0:
+        in_f = open(args[0])
+    else:
+        in_f = stdin
+
+    buf = ''
+    for line in in_f:
+        if line[0] == '>':
+            stdout.write( '\n' )
+            stdout.write( line )
+            continue
+
+        line = line.strip('\n')
+
+        while line:
+            m = opts.width - len(buf)
+            if len(line) < m:
+                buf = ''.join( (buf, line) )
+                line = ''
+            else:
+                stdout.write( buf )
+                stdout.write( line[:m] )
+                stdout.write( '\n' )
+                buf = ''
+                line = line[m:]
+
+
+
+    if buf:
+        stdout.write( buf )
+        stdout.write( '\n' )
+
+
+if __name__ == '__main__':
+    main()
+
