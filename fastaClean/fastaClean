@@ -23,7 +23,6 @@ def main():
     buf = ''
     for line in in_f:
         if line[0] == '>':
-            stdout.write( '\n' )
             stdout.write( line )
             continue
 
