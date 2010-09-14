@@ -3,7 +3,7 @@ CFLAGS=-g -Wall -O3
 INC=
 LIB=-lbam -lz
 
-OBJ=read_redundancy.o hash.o superfasthash.o
+OBJ=read_redundancy.o hash.o superfasthash.o dibase_decode.o
 
 all : read_redundancy
 
