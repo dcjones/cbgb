@@ -43,13 +43,13 @@ struct table* hash_reads( READ_FILE* f, readget getread  )
         if( read[0] == '\0' ) continue;
         n++;
         table_inc( T, read );
-        if( n % 100000 == 0 ) fprintf( stderr, "\t%d reads (%d unique).\n", n, T->m );
+        if( n % 100000 == 0 ) fprintf( stderr, "\t%zu reads (%zu unique).\n", n, T->m );
     } while( getread( f, read ) );
 
 
     free(read);
 
-    fprintf( stderr, "done. (%d reads hashed, %d are unique)\n", n, T->m );
+    fprintf( stderr, "done. (%zu reads hashed, %zu are unique)\n", n, T->m );
 
     return T;
 }

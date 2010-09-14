@@ -1,5 +1,5 @@
 
-CFLAGS=-g -Wall -O0 -march=i686
+CFLAGS=-g -Wall -O3
 INC=
 LIB=-lbam -lz
 
