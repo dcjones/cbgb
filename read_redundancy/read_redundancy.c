@@ -5,9 +5,11 @@
 #include <zlib.h>
 #include <samtools/sam.h>
 #include "hash.h"
+#include "dibase_decode.h"
 
 const size_t MAX_LINE_WIDTH=4096;
 bool ignore_N = true;
+bool decode_colorspace = false;
 
 typedef union {
     gzFile     rawf;
@@ -67,7 +69,8 @@ void usage()
              "Usage: read_redundancy [OPTIONS] input_file\n\n"
              "-C, -Q, -S, -B        input is csfasta, fastq, sam, or bam, respectively.\n"
              "                      exactly one must be specified!\n" 
-             "-n                    count reads with N's\n\n"
+             "-n                    count reads containing 'N' or '.' characters\n"
+             "-d                    decode colorspace reads\n\n"
              );
 }
 
@@ -94,7 +97,7 @@ int main( int argc, char* argv[] )
 
     int c;
 
-    const char* optstring = "CQSB";
+    const char* optstring = "CQSBnd";
     do {
         c = getopt( argc, argv, optstring );
         switch( c ) {
@@ -103,6 +106,7 @@ int main( int argc, char* argv[] )
             case 'S': S_opt = 1; break;
             case 'B': B_opt = 1; break;
             case 'n': ignore_N = false; break;
+            case 'd': decode_colorspace = true; break;
         }
     } while( c != -1 );
 
@@ -199,6 +203,8 @@ size_t csfasta_getread( READ_FILE* f, char* read )
 
     if( N_found ) read[0] = '\0';
     read[ n-1 ] = '\0'; /* trim newline */
+
+    if( decode_colorspace ) dibase_decode( read, read );
 
     return n-1;
 };

@@ -3,7 +3,7 @@ CFLAGS=-g -Wall -O3
 INC=-I${HOME}/include
 LIB=${HOME}/lib/libbam.a -lz
 
-OBJ=read_redundancy.o hash.o superfasthash.o
+OBJ=read_redundancy.o hash.o superfasthash.o dibase_decode.o
 
 all : read_redundancy
 
