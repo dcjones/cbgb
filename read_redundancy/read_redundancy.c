@@ -22,12 +22,13 @@ size_t fastq_getread  ( READ_FILE* f, char* read );
 size_t sam_getread    ( READ_FILE* f, char* read );
 
 
-struct table* hash_reads( READ_FILE* f, readget getread  )
+struct table* hash_reads( READ_FILE* f, readget getread, size_t* num_ignored )
 {
     fprintf( stderr, "hashing reads ...\n" );
 
     char* read = malloc(MAX_LINE_WIDTH*sizeof(char*));
     size_t n, m;
+    *num_ignored = 0;
 
     /* get one read to guess the read length */
     if( (m = getread( f, read )) == 0 ) return NULL;
@@ -40,16 +41,21 @@ struct table* hash_reads( READ_FILE* f, readget getread  )
 
     /* hash */
     do {
-        if( read[0] == '\0' ) continue;
+        if( read[0] == '\0' ) {
+            (*num_ignored)++;
+            continue;
+        }
         n++;
         table_inc( T, read );
-        if( n % 100000 == 0 ) fprintf( stderr, "\t%zu reads (%zu unique).\n", n, T->m );
+        if( n % 100000 == 0 ) fprintf( stderr, "\t%zu reads (%zu unique, %zu ignored).\n",
+                                       n, T->m, *num_ignored );
     } while( getread( f, read ) );
 
 
     free(read);
 
-    fprintf( stderr, "done. (%zu reads hashed, %zu are unique)\n", n, T->m );
+    fprintf( stderr, "done. (%zu reads hashed, %zu are unique, %zu were ignored)\n",
+                      n, T->m, *num_ignored );
 
     return T;
 }
@@ -82,6 +88,7 @@ void not_implemented( const char* func )
 
 int main( int argc, char* argv[] )
 {
+    size_t num_ignored = 0;
     int C_opt, Q_opt, S_opt, B_opt;
     C_opt = Q_opt = S_opt = B_opt = 0;
 
@@ -117,22 +124,22 @@ int main( int argc, char* argv[] )
 
     if( C_opt ) {
         if( (f.rawf = gzopen( fn, "r" )) == NULL ) file_not_found( fn );
-        T = hash_reads( &f, csfasta_getread );
+        T = hash_reads( &f, csfasta_getread, &num_ignored );
         gzclose( f.rawf );
     }
     else if( Q_opt ) {
         if( (f.rawf = gzopen( argv[optind], "r" )) == NULL ) file_not_found( fn );
-        T = hash_reads( &f, fastq_getread );
+        T = hash_reads( &f, fastq_getread, &num_ignored );
         gzclose( f.rawf );
     }
     else if( S_opt ) {
         if( (f.samf = samopen( argv[optind], "r", NULL )) == NULL ) file_not_found( fn );
-        T = hash_reads( &f, sam_getread );
+        T = hash_reads( &f, sam_getread, &num_ignored );
         samclose(f.samf);
     }
     else if( B_opt ) {
         if( (f.samf = samopen( argv[optind], "rb", NULL )) == NULL ) file_not_found( fn );
-        T = hash_reads( &f, sam_getread );
+        T = hash_reads( &f, sam_getread, &num_ignored );
         samclose(f.samf);
     }
 
@@ -153,10 +160,14 @@ int main( int argc, char* argv[] )
     for( i = 0; i < T->m; i++ ) {
         fprintf( stdout, "%s\t%d\n", S[i]->seq, S[i]->count );
     }
+    fprintf( stdout, "ignored\t%zu\n", num_ignored );
 
     fprintf( stderr, "done.\n" );
 
+    fprintf( stderr, "dismantling table ... " );
+    free(S);
     table_destroy( T );
+    fprintf( stderr, "done.\n" );
     return 0;
 }
 
