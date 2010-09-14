@@ -2,22 +2,24 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <zlib.h>
 #include <samtools/sam.h>
 #include "hash.h"
 
 const size_t MAX_LINE_WIDTH=4096;
+bool ignore_N = true;
 
 typedef union {
-    FILE*      rawf;
+    gzFile     rawf;
     samfile_t* samf;
 } READ_FILE;
 
 
-typedef bool (*readget)( READ_FILE* f, char* read );
+typedef size_t (*readget)( READ_FILE* f, char* read );
 
-bool csfasta_getread( READ_FILE* f, char* read );
-bool fastq_getread  ( READ_FILE* f, char* read );
-bool sam_getread    ( READ_FILE* f, char* read );
+size_t csfasta_getread( READ_FILE* f, char* read );
+size_t fastq_getread  ( READ_FILE* f, char* read );
+size_t sam_getread    ( READ_FILE* f, char* read );
 
 
 struct table* hash_reads( READ_FILE* f, readget getread  )
@@ -28,8 +30,7 @@ struct table* hash_reads( READ_FILE* f, readget getread  )
     size_t n, m;
 
     /* get one read to guess the read length */
-    if( !getread( f, read ) ) return NULL;
-    m = strlen(read);
+    if( (m = getread( f, read )) == 0 ) return NULL;
 
     /* create table */
     struct table* T = malloc(sizeof(struct table));
@@ -39,9 +40,10 @@ struct table* hash_reads( READ_FILE* f, readget getread  )
 
     /* hash */
     do {
+        if( read[0] == '\0' ) continue;
         n++;
         table_inc( T, read );
-        if( n % 100000 == 0 ) fprintf( stderr, "\t%d reads.\n", n );
+        if( n % 100000 == 0 ) fprintf( stderr, "\t%d reads (%d unique).\n", n, T->m );
     } while( getread( f, read ) );
 
 
@@ -58,7 +60,8 @@ void usage()
     fprintf( stderr,
              "Usage: read_redundancy [OPTIONS] input_file\n\n"
              "-C, -Q, -S, -B        input is csfasta, fastq, sam, or bam, respectively.\n"
-             "                      exactly one must be specified!\n\n" 
+             "                      exactly one must be specified!\n" 
+             "-n                    count reads with N's\n\n"
              );
 }
 
@@ -92,6 +95,7 @@ int main( int argc, char* argv[] )
             case 'Q': Q_opt = 1; break;
             case 'S': S_opt = 1; break;
             case 'B': B_opt = 1; break;
+            case 'n': ignore_N = false; break;
         }
     } while( c != -1 );
 
@@ -109,17 +113,17 @@ int main( int argc, char* argv[] )
 
     const char* fn = argv[optind];
     READ_FILE f;
-    struct table* T;
+    struct table* T = NULL;
 
     if( C_opt ) {
-        if( (f.rawf = fopen( fn, "r" )) == NULL ) file_not_found( fn );
+        if( (f.rawf = gzopen( fn, "r" )) == NULL ) file_not_found( fn );
         T = hash_reads( &f, csfasta_getread );
-        fclose( f.rawf );
+        gzclose( f.rawf );
     }
     else if( Q_opt ) {
-        if( (f.rawf = fopen( argv[optind], "r" )) == NULL ) file_not_found( fn );
+        if( (f.rawf = gzopen( argv[optind], "r" )) == NULL ) file_not_found( fn );
         T = hash_reads( &f, fastq_getread );
-        fclose( f.rawf );
+        gzclose( f.rawf );
     }
     else if( S_opt ) {
         if( (f.samf = samopen( argv[optind], "r", NULL )) == NULL ) file_not_found( fn );
@@ -130,6 +134,11 @@ int main( int argc, char* argv[] )
         if( (f.samf = samopen( argv[optind], "rb", NULL )) == NULL ) file_not_found( fn );
         T = hash_reads( &f, sam_getread );
         samclose(f.samf);
+    }
+
+    if( T == NULL ) {
+        fprintf( stderr, "hashreads inexplicably failed.\n" );
+        exit(1);
     }
 
 
@@ -152,35 +161,50 @@ int main( int argc, char* argv[] )
 }
 
 
+/* make one pass through the string to determine the length and whether it
+ * contains the given character. */
+bool strchrlen( const char* s, char c, size_t* len ) 
+{
+    bool  c_found = false;
+    const char* s0 = s;
+
+    while( *s ) if( *s++ == c ) c_found = true;
+
+    *len = s - s0;
+    return c_found;
+}
 
 
-bool csfasta_getread( READ_FILE* f, char* read )
+size_t csfasta_getread( READ_FILE* f, char* read )
 {
     /* get read name */
-    if( !fgets( read, MAX_LINE_WIDTH, f->rawf ) ) return false;
+    if( !gzgets( f->rawf, read, MAX_LINE_WIDTH ) ) return 0;
 
     /* get read sequence */
-    if( !fgets( read, MAX_LINE_WIDTH, f->rawf ) ) return false;
+    if( !gzgets( f->rawf, read, MAX_LINE_WIDTH ) ) return 0;
 
-    /* trim newline */
-    read[ strlen(read)-1 ] = '\0';
+    size_t n = 0;
+    bool N_found = strchrlen( read, '.', &n );
 
-    return true;
+    if( N_found ) read[0] = '\0';
+    read[ n-1 ] = '\0'; /* trim newline */
+
+    return n-1;
 };
 
 
 
 
-bool fastq_getread  ( READ_FILE* f, char* read )
+size_t fastq_getread  ( READ_FILE* f, char* read )
 {
     not_implemented( __func__ );
-    return false;
+    return 0;
 };
 
-bool sam_getread    ( READ_FILE* f, char* read )
+size_t sam_getread    ( READ_FILE* f, char* read )
 {
     not_implemented( __func__ );
-    return false;
+    return 0;
 };
 
 

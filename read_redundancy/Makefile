@@ -1,9 +1,9 @@
 
-CFLAGS=-g -Wall
+CFLAGS=-g -Wall -O0 -march=i686
 INC=
 LIB=-lbam -lz
 
-OBJ=read_redundancy.o hash.o
+OBJ=read_redundancy.o hash.o superfasthash.o
 
 all : read_redundancy
 
