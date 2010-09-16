@@ -85,6 +85,14 @@ void double_encode( int n, char* read_seq, char* qual_seq, int* quals )
     qual_seq[i-1] = '\0';
 }
 
+char* fgets_noncomment( char* buf, size_t buf_size, FILE* f )
+{
+    char* r;
+    while( (r = fgets( buf, buf_size, f)) && r[0] == '#' );
+
+    return r;
+}
+
 
 int main( int argc, char* argv[] )
 {
@@ -106,11 +114,12 @@ int main( int argc, char* argv[] )
     int* quals = malloc( buf_size*sizeof(int) );
 
     int n;
-    
-    while( fgets( read_name, buf_size, reads_in ) &&
-           fgets( read_seq,  buf_size, reads_in ) &&
-           fgets( qual_name, buf_size, quals_in ) &&
-           fgets( qual_seq,  buf_size, quals_in ) )
+
+    /* skip initial comments */
+    while( fgets_noncomment( read_name, buf_size, reads_in ) &&
+           fgets_noncomment( read_seq,  buf_size, reads_in ) &&
+           fgets_noncomment( qual_name, buf_size, quals_in ) &&
+           fgets_noncomment( qual_seq,  buf_size, quals_in ) )
     {
         if( strcmp( read_name, qual_name ) != 0 ) {
             fprintf( stderr, "Error: Mismatching read/quality pair.\n" );
