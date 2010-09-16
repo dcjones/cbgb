@@ -34,6 +34,9 @@ FILE* safe_fopen( const char* fn, const char* mode ) {
     return f;
 }
 
+int isdigitneg( char c ) { return isdigit(c) || c == '-'; }
+
+
 /* convert the quals string into an array of doubles, return the number of
  * qualities extracted. */
 int get_quals( char* in, int* out )
@@ -42,9 +45,9 @@ int get_quals( char* in, int* out )
     char c;
     while( in[i] ) {
         while( isspace(in[i]) ) i++;
-        if( !isdigit(in[i]) ) break;
+        if( !isdigitneg(in[i]) ) break;
         j = i;
-        while( isdigit(in[j]) ) j++;
+        while( isdigitneg(in[j]) ) j++;
 
         c = in[j];
         in[j] = '\0';
