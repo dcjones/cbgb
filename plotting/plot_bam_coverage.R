@@ -96,7 +96,7 @@ library(ggplot2)
 CairoPNG('coverage.png', width=1100, height=2000)
 
 
-p <- qplot( pos, (count), data=d, geom='area' )
+p <- qplot( pos, count, data=d, geom='area' )
 p <- p + scale_x_continuous(name='Position')
 p <- p + scale_y_continuous(name='Read Count')
 p <- p + opts( panel.grid.major = theme_blank(),
