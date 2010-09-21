@@ -89,7 +89,7 @@ struct table* hash_read_ids( const char* filter_fn, bool input_bam, bool invert 
     bam1_t *b = bam_init1();
     bool unmapped;
 
-    while( samread( filter_f, b ) ) {
+    while( samread( filter_f, b ) > 0 ) {
         n++;
         unmapped = (b->core.flag & BAM_FUNMAP) > 0;
         if( unmapped == invert ) table_add( T, bam1_qname(b) );
