@@ -93,7 +93,7 @@ struct table* hash_read_ids( const char* filter_fn, bool input_bam, bool invert 
         n++;
         unmapped = (b->core.flag & BAM_FUNMAP) > 0;
         if( unmapped == invert ) table_add( T, bam1_qname(b) );
-        if( n % 100000 == 0 ) fprintf( stderr, "\t%zd reads proccessed", n );
+        if( n % 100000 == 0 ) fprintf( stderr, "\t%zd reads proccessed\n", n );
     }
 
     bam_destroy1(b);
