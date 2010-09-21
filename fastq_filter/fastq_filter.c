@@ -93,7 +93,7 @@ struct table* hash_read_ids( const char* filter_fn, bool input_bam, bool invert 
         n++;
         unmapped = (b->core.flag & BAM_FUNMAP) > 0;
         if( unmapped == invert ) table_add( T, bam1_qname(b) );
-        if( n % 100000 == 0 ) fprintf( stderr, "\t%zd reads proccessed", n );
+        if( n % 100000 == 0 ) fprintf( stderr, "\t%zd reads proccessed\n", n );
     }
 
     bam_destroy1(b);
@@ -186,7 +186,7 @@ int main( int argc, char* argv[] )
            fgets_noncomment( qual_seq,  buf_size, input_f ) )
     {
         n++;        
-        read_name[strlen(read_name)-1] = '\0';
+        read_name[strlen(read_name)] = '\0';
         if( !table_member( T, read_name+1 ) ) continue;
 
         printf( "%s\n%s%s%s", read_name, read_seq, qual_name, qual_seq );
