@@ -186,7 +186,7 @@ int main( int argc, char* argv[] )
            fgets_noncomment( qual_seq,  buf_size, input_f ) )
     {
         n++;        
-        read_name[strlen(read_name)] = '\0';
+        read_name[strlen(read_name)-1] = '\0';
         if( invert == table_member( T, read_name+1 ) ) continue;
 
         printf( "%s\n%s%s%s", read_name, read_seq, qual_name, qual_seq );
