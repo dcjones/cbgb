@@ -73,7 +73,7 @@ char* fgets_noncomment( char* buf, size_t buf_size, FILE* f )
 
 
 
-struct table* hash_read_ids( const char* filter_fn, bool input_bam, bool invert )
+struct table* hash_read_ids( const char* filter_fn, bool input_bam )
 {
     samfile_t* filter_f = samopen( filter_fn, input_bam ? "rb" : "r", NULL );
     if( filter_f == NULL ) {
@@ -92,7 +92,7 @@ struct table* hash_read_ids( const char* filter_fn, bool input_bam, bool invert 
     while( samread( filter_f, b ) > 0 ) {
         n++;
         unmapped = (b->core.flag & BAM_FUNMAP) > 0;
-        if( unmapped == invert ) table_add( T, bam1_qname(b) );
+        if( !unmapped ) table_add( T, bam1_qname(b) );
         if( n % 100000 == 0 ) fprintf( stderr, "\t%zd reads proccessed\n", n );
     }
 
@@ -161,7 +161,7 @@ int main( int argc, char* argv[] )
 
 
     fprintf( stderr, "hashinging read id's ... " );
-    struct table* T = hash_read_ids( filter_fn, input_bam, invert );
+    struct table* T = hash_read_ids( filter_fn, input_bam );
     fprintf( stderr, "done. (%zd hashed)\n", T->m );
 
 
@@ -187,7 +187,7 @@ int main( int argc, char* argv[] )
     {
         n++;        
         read_name[strlen(read_name)] = '\0';
-        if( !table_member( T, read_name+1 ) ) continue;
+        if( invert == table_member( T, read_name+1 ) ) continue;
 
         printf( "%s\n%s%s%s", read_name, read_seq, qual_name, qual_seq );
     }
