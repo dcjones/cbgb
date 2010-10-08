@@ -64,7 +64,7 @@ int main( int argc, char* argv[] )
 
     emfparse* aln;
 
-    if( argc >= 3 ) {
+    if( argc > 3 ) {
         FILE* f = fopen_or_die( argv[3], "r" );
         aln = new emfparse( species, argv[2], f );
         fclose(f);
