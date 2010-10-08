@@ -243,8 +243,8 @@ void emfparse::parse( FILE* f )
                 s = emf_state_header;
                 seq_col_num = 0;
                 ref_col_num = -1;
-                memset( seqs, NULL, maxspecies*sizeof(char*) );
-                if( blocknum % 100 == 0 ) fprintf( stderr, "\t%d blocks read ...\n", blocknum );
+                memset( seqs, 0, maxspecies*sizeof(char*) );
+                if( blocknum % 100 == 0 ) fprintf( stderr, "\t%zd blocks read ...\n", blocknum );
                 continue;
             }
 
@@ -276,7 +276,7 @@ void emfparse::parse( FILE* f )
                 // positive strand
                 else if( ref_strand == 1 ) {
                     if( ref_start + row >= n ) {
-                        fprintf( stderr, "Index out of bounds: %d / %d\n",
+                        fprintf( stderr, "Index out of bounds: %zd / %zd\n",
                                  ref_start + row, n );
                         exit(1);
                     }
@@ -286,7 +286,7 @@ void emfparse::parse( FILE* f )
                 // negative strind
                 else {
                     if( ref_end - row - 1 >= n ) {
-                        fprintf( stderr, "Index out of bounds: %d / %d\n",
+                        fprintf( stderr, "Index out of bounds: %zd / %zd\n",
                                  ref_start + row, n );
                         exit(1);
                     }
