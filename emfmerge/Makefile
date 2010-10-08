@@ -1,5 +1,5 @@
 
-CPPFLAGS=-Wall -g -D_FILE_OFFSET_BITS=64 -I${HOME}/include
+CPPFLAGS=-Wall -g -D_FILE_OFFSET_BITS=64 -I${HOME}/include -O3
 
 all : emfmerge
 
