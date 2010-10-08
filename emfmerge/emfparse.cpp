@@ -217,14 +217,16 @@ void emfparse::parse( FILE* f )
                 }
 
                 if( seq_name == ref_name ) {
-                    ref_col_num = seq_col_num;
-                    ref_chrom   = seq_chrom;
-                    ref_start   = atoi(seq_start.c_str());
-                    ref_end     = atoi(seq_end.c_str());
-                    ref_strand  = atoi(seq_strand.c_str());
+                    if( ref_col_num == -1 ) {
+                        ref_col_num = seq_col_num;
+                        ref_chrom   = seq_chrom;
+                        ref_start   = atoi(seq_start.c_str());
+                        ref_end     = atoi(seq_end.c_str());
+                        ref_strand  = atoi(seq_strand.c_str());
+                        seqs[seq_col_num] = msa[seq_name];
+                    }
                 }
-
-                if( msa.find(seq_name) != msa.end() ) {
+                else if( msa.find(seq_name) != msa.end() ) {
                     seqs[seq_col_num] = msa[seq_name];
                 }
 
