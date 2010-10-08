@@ -1,5 +1,5 @@
 
-CPPFLAGS=-Wall -g -D_FILE_OFFSET_BITS=64
+CPPFLAGS=-Wall -g -D_FILE_OFFSET_BITS=64 -I${HOME}/include
 
 all : emfmerge
 
@@ -9,7 +9,7 @@ all : emfmerge
 
 
 emfmerge : emfmerge.o emfparse.o
-	g++ -o $@ $^ -lpcrecpp
+	g++ -o $@ $^ ${HOME}/lib/libpcrecpp.a ${HOME}/lib/libpcre.a
 
 clean :
 	rm -f emfmerge *.o
