@@ -32,6 +32,11 @@ int main( int arg, char* argv[] )
     long chrom;
 
     while( fgets( line, maxline, stdin ) ) {
+        if( line[0] != 'S' ) {
+            fputs( line, stdout );
+            continue;
+        }
+
         mat = pcre_exec( seq_pat,        /* code */
                          seq_pat_extra,  /* extra */ 
                          line,           /* subject */
@@ -71,7 +76,9 @@ int main( int arg, char* argv[] )
         }
     }
 
-
+    free(line);
+    pcre_free( seq_pat );
+    pcre_free( seq_pat_extra );
     return 0;
 }
 

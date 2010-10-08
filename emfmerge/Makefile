@@ -13,7 +13,7 @@ emfmerge : emfmerge.o emfparse.o
 
 
 emf_ensembl_to_ucsc : emf_ensembl_to_ucsc.c
-	gcc $(CPPFLAGS) -o $@ $< -lpcre
+	gcc $(CPPFLAGS) -o $@ $< $(HOME)/lib/libpcre.a
 
 
 clean :
