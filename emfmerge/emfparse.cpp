@@ -269,7 +269,8 @@ void emfparse::parse( FILE* f )
                     }
 
                     if( a != b ) {
-                        fprintf( stderr, "\twarning: inconsistent reference\n" );
+                        fprintf( stderr, "\twarning: inconsistent reference (%s:%zd-%zd(%d) + %d,  (%c != %c)\n",
+                                         ref_seqname, ref_start, ref_end, ref_strand, row, a, b );
                     }
                 }
                 else if( seqs[col] == NULL ) continue;

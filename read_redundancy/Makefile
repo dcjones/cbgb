@@ -1,7 +1,7 @@
 
 CFLAGS=-g -Wall -O3
-INC=
-LIB=-lbam -lz
+INC=-I${HOME}/include
+LIB=${HOME}/lib/libbam.a -lz
 
 OBJ=read_redundancy.o hash.o superfasthash.o dibase_decode.o
 
