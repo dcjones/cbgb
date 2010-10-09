@@ -43,22 +43,23 @@ int main( int arg, char* argv[] )
 
 
         if( mat == 2 ) {
-            /*fprintf( stderr, "MATCH: %d-%d\n", ovec[2], ovec[3] );*/
+            fprintf( stderr, "MATCH: %d-%d\n", ovec[2], ovec[3] );
 
             if( strncmp( "MT", line+ovec[2], ovec[3]-ovec[2] ) == 0 ) {
                 fwrite( line, sizeof(char), ovec[2], stdout );
                 fprintf( stdout, "chrM%s", line+ovec[3] );
             }
             else {
-                c = line[ovec[3]+1];
-                line[ovec[3]+1] = '\0';
+                c = line[ovec[3]];
+                line[ovec[3]] = '\0';
                 chrom = strtol( line+ovec[2], &endptr, 10 );
-                line[ovec[3]+1] = c;
                 if( *endptr == '\0' ) {
+                    line[ovec[3]] = c;
                     fwrite( line, sizeof(char), ovec[2], stdout );
                     fprintf( stdout, "chr%ld%s", chrom, line+ovec[3] );
                 }
                 else {
+                    line[ovec[3]] = c;
                     fputs( line, stdout );
                 }
             }
