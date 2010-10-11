@@ -35,7 +35,7 @@ def parse_bed( fn ):
 
 
 def aln_fn_chrom( fn ):
-    mat = re.search( r'([^\/]+)\.fasta$', fn )
+    mat = re.search( r'([^\/^\.]+)[^\/]+\.fasta$', fn )
     if mat: return mat.group(1)
     else:   return fn
 
@@ -59,6 +59,8 @@ def main():
 
     aln_fns = dict([ (aln_fn_chrom(fn),fn) for fn in argv[3:] ])
 
+    print aln_fns
+
     bs = parse_bed( argv[2] )
     bs.sort( key = lambda b: b.chrom )
 
@@ -71,6 +73,7 @@ def main():
             if b.chrom in aln_fns:
                 aln = Bio.AlignIO.read( aln_fns[b.chrom], 'fasta' )
                 aln_chrom = b.chrom
+            else: continue
 
         aln_sub = aln[:,b.start:b.end]
         if b.strand == '-':
