@@ -1,0 +1,36 @@
+#!/usr/bin/env python
+
+from sys         import stdout, stderr, stdin, argv
+import sqlite3
+import zlib
+
+
+def usage():
+    stderr.write( 'Usage: dumaln in.db\n\n' )
+    stderr.write( 'Dump all the alignments contained in in.db\n'
+                  'to name_i.fa, etc.\n' )
+
+
+
+def main():
+    if len(argv) < 2:
+        usage()
+        exit(1)
+
+    db = sqlite3.connect( argv[1] )
+
+    c = db.cursor()
+
+    c.execute( 'select name from alignments' )
+    names = set( row[0] for row in c )
+
+    for name in names:
+        c.execute( 'select aln from alignments where name=?', (name,) )
+        seq = zlib.decompress(c.next()[0])
+        f = open( '%s.fa' % name, 'w' )
+        f.write( seq )
+        f.close()
+
+
+if __name__ == '__main__':
+    main()
