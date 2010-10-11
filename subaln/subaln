@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+
+import Bio.AlignIO
+import re
+import cStringIO
+import zlib
+from sys         import stdout, stderr, stdin, argv
+from collections import namedtuple
+import sqlite3
+
+
+def usage():
+    stderr.write( 'Usage: subaln out.db in.bed seq1.fasta [seq2.fasta ...]\n\n' )
+    stderr.write( 'Subtracts the intervals specified in in.bed outputing\n'
+                  'name_i.fasta for each name in the bed file.\n\n' )
+
+
+bed = namedtuple( 'bed', 'chrom start end strand name' )
+
+def parse_bed( fn ):
+    k = 1
+    bs = []
+    for line in open(fn):
+        row = line.strip('\n').split()
+        if len(row) >= 3:
+            b = bed( chrom = row[0],
+                     start = int(row[1]),
+                     end   = int(row[2]),
+                     strand = row[5] if len(row) > 5 else '+',
+                     name   = row[3] if len(row) > 3 else 'bed-%d' % k )
+            bs.append( b )
+        k += 1
+
+    return bs
+
+
+def aln_fn_chrom( fn ):
+    mat = re.search( r'([^\/]+)\.fasta$', fn )
+    if mat: return mat.group(1)
+    else:   return fn
+
+
+
+def aln_rc( aln ):
+    ''' reverse complement an alignment '''
+    for seq_rec in list(aln):
+        seq_rec.seq = seq_rec.seq.reverse_complement()
+
+
+def main():
+    if len(argv) < 4:
+        usage()
+        exit(1)
+
+    db = sqlite3.connect( argv[1] )
+    db.execute( 'drop table if exists alignments' )
+    db.execute( 'create table alignments ( name text primary key, aln blob )' )
+
+
+    aln_fns = dict([ (aln_fn_chrom(fn),fn) for fn in argv[3:] ])
+
+    bs = parse_bed( argv[2] )
+    bs.sort( key = lambda b: b.chrom )
+
+
+    aln_chrom = None
+    aln = None
+
+    for b in bs:
+        if aln_chrom != b.chrom:
+            if b.chrom in aln_fns:
+                aln = Bio.AlignIO.read( aln_fns[b.chrom], 'fasta' )
+                aln_chrom = b.chrom
+
+        aln_sub = aln[:,b.start:b.end]
+        if b.strand == '-':
+            aln_rc(aln_sub)
+
+        aln_str = cStringIO.StringIO()
+        Bio.AlignIO.write( aln_sub, aln_str, 'fasta' )
+
+        db.execute( 'insert into alignments values (?,?)',
+                     (b.name, buffer(zlib.compress( aln_str.getvalue()))) )
+
+    db.commit()
+
+
+if __name__ == '__main__':
+    main()
+
+
+
