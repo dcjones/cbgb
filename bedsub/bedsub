@@ -1,0 +1,225 @@
+#!/usr/bin/env python
+
+
+from sys         import stdout, stdin, stderr, argv
+from collections import namedtuple
+from heapq       import *
+import argparse
+
+
+
+stranded = True
+
+
+#bed_row = namedtuple( 'bed_row', 'chrom start end name score strand extra k' )
+
+
+
+class bed_row:
+    def  __init__( self, chrom, start, end, name, score, strand, extra, k=0 ):
+        self.chrom  = chrom
+        self.start  = start
+        self.end    = end
+        self.name   = name
+        self.score  = score
+        self.strand = strand
+        self.extra  = extra
+        self.k      = k
+
+
+    def __cmp__( self, y ):
+        if stranded:
+            return cmp( (self.chrom, self.start, self.end),
+                        (y.chrom, y.start, y.end) )
+        else:
+            return cmp( (self.chrom, self.strand, self.start, self.end),
+                        (y.chrom, y.strand, y.start, y.end) )
+
+    def __repr__( self ):
+        return repr((self.chrom,self.start,self.end,self.name,self.score,self.strand,self.k))
+
+
+
+
+def bed_row_from_line( line ):
+    line = line.strip('\n').split('\t')
+    if len(line) < 3:
+        raise TypeError
+
+    chrom   = line[0]
+    start   = int(line[1])
+    end     = int(line[2])
+    name    = line[3] if len(line) > 3 else ''
+    score   = line[4] if len(line) > 4 else 0.0
+    strand  = line[5] if len(line) > 5 and line[5] in ('+','-') else '.'
+    extra   = line[6:] if len(line) > 6 else []
+    k       = 0
+
+    return bed_row( chrom, start, end, name, score, strand, extra, k )
+
+
+def parse_bed( bed_f ):
+
+    stderr.write( 'parsing BED ... ' )
+
+    i = 0
+    rows = []
+    for line in bed_f:
+        i += 1
+        try:
+            row = bed_row_from_line(line)
+        except TypeError:
+            stderr.write( 'BED line %d is malformed. Skipping.\n' % i )
+            continue
+
+        rows.append(row)
+
+    stderr.write( 'done (%d rows).\n' % len(rows) )
+
+    return rows
+
+
+def print_bed( zs ):
+    bedline  = '{chrom}\t{start}\t{end}\t{name}\t{score}\t{strand}'
+    bedlinek = '{chrom}\t{start}\t{end}\t{name}\t{score}\t{strand}'
+
+    for z in zs:
+        if z.k > 0:
+            stdout.write(
+                    '{chrom}\t{start}\t{end}\t{name}.{k}\t{score}\t{strand}\n'.format(
+                        chrom  = z.chrom,
+                        start  = z.start,
+                        end    = z.end,
+                        name   = z.name,
+                        score  = z.score,
+                        strand = z.strand,
+                        k      = z.k ) )
+
+        else:
+            stdout.write(
+                    '{chrom}\t{start}\t{end}\t{name}\t{score}\t{strand}\n'.format(
+                        chrom  = z.chrom,
+                        start  = z.start,
+                        end    = z.end,
+                        name   = z.name,
+                        score  = z.score,
+                        strand = z.strand ) )
+
+
+def subtract_bed( xs, ys ):
+
+    stderr.write( 'subtracting ... \n' )
+
+    zs = []
+
+    stderr.write( '\tsorting a ... ' )
+    heapify( xs )
+    stderr.write( 'done\n' )
+
+    stderr.write( '\tsorting b ... ' )
+    heapify( ys )
+    stderr.write( 'done\n' )
+
+    while xs and ys:
+        x = xs[0]
+        y = ys[0]
+
+
+        if stranded and (x.chrom,x.strand) < (y.chrom,y.strand):
+            heappush( zs, heappop(xs) )
+        elif stranded and (x.chrom,x.strand) > (y.chrom,y.strand):
+            heappop( ys )
+        elif not stranded and x.chrom < y.chrom:
+            heappush( zs, heappop(xs) )
+        elif not stranded and x.chrom > y.chrom:
+            heappop( ys )
+        elif y.start >= x.end:
+            heappush( zs, heappop(xs) )
+        elif y.end <= x.start:
+            heappop( ys )
+        else:
+            # overlap!
+            i = 0
+            if x.start < y.start:
+                heappush( zs, bed_row( chrom  = x.chrom,
+                                       start  = x.start,
+                                       end    = y.start,
+                                       name   = x.name,
+                                       score  = x.score,
+                                       strand = x.strand,
+                                       extra  = x.extra,
+                                       k      = x.k + 1 ) )
+
+                heappop(xs)
+                if x.end > y.end:
+                    heappush( xs, bed_row( chrom  = x.chrom,
+                                           start  = y.end,
+                                           end    = x.end,
+                                           name   = x.name,
+                                           score  = x.score,
+                                           strand = x.strand,
+                                           extra  = x.extra,
+                                           k      = x.k + 2 ) )
+            else:
+                i = -1
+                while True:
+                    if i > 0 and ys[i-1].start < x.end:
+                        i -= 1
+                    else: break
+
+                heappop(xs)
+                # x is not entirely covered by intervals
+                if x.end > ys[i].end:
+                    heappush( xs, bed_row( chrom  = x.chrom,
+                                           start  = ys[i].start,
+                                           end    = x.end,
+                                           name   = x.name,
+                                           score  = x.score,
+                                           strand = x.strand,
+                                           extra  = x.extra,
+                                           k      = x.k ) )
+
+
+    stderr.write( 'done.\n' )
+
+    return zs
+
+
+
+
+
+
+
+
+desc = 'Subtract the intervals in b from those in a. For\n' \
+       'each entry in a that is split up, the names are appended\n' \
+       'with \'.n\', for the nth split.\n\n'
+
+def main():
+    ap = argparse.ArgumentParser( description = desc )
+    ap.add_argument( '-u', '--stranded', action = 'store_true', default=True,
+                     dest='unstranded',
+                     help='do not consider strand (default: do consider strand)' )
+
+    ap.add_argument( 'a', metavar='a.bed', help='original from which b.bed shall be subtracted.',
+                     type=argparse.FileType('r') )
+
+    ap.add_argument( 'b', metavar='b.bed', help='intervals to subtract from a.bed',
+                     type=argparse.FileType('r') )
+
+    args = ap.parse_args()
+
+    stranded = not args.unstranded
+
+    a = parse_bed( args.a )
+    b = parse_bed( args.b )
+
+    c = subtract_bed( a, b )
+    print_bed( c )
+
+
+
+
+if __name__ == '__main__':
+    main()
+

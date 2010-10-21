@@ -2,6 +2,11 @@
 library(Cairo)
 library(ggplot2)
 
+CairoFonts(
+    regular="Univers LT Std,Univers LT Std 55:style=55 Light,Regular",
+    bold="Univers LT Std,Univers LT Std 45 Light:style=45 Roman,Regular"
+    )
+
 
 plot_hashed_reads <- function( in_fn, out_fn ) {
 
