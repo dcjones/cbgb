@@ -150,6 +150,7 @@ def subtract_bed( xs, ys ):
             i = 0
             if x.start < y.start:
                 ki = 1 if x.k == None else x.k
+                heappop(xs)
                 heappush( zs, bed_row( chrom  = x.chrom,
                                        start  = x.start,
                                        end    = y.start,
@@ -159,7 +160,6 @@ def subtract_bed( xs, ys ):
                                        extra  = x.extra,
                                        k      = ki ) )
 
-                heappop(xs)
                 if x.end > y.end:
                     heappush( xs, bed_row( chrom  = x.chrom,
                                            start  = y.end,
