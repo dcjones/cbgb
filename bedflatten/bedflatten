@@ -50,8 +50,8 @@ def min_exp_str( a, b ):
     if   a_exp < b_exp: return a
     elif a_exp > b_exp: return b
 
-    a_part = float(re.search( r'e([+-][\.\d]+)', a ).group(1))
-    b_part = float(re.search( r'e([+-][\.\d]+)', b ).group(1))
+    a_part = float(re.search( r'([+-][\.\d]+)', a ).group(1))
+    b_part = float(re.search( r'([+-][\.\d]+)', b ).group(1))
 
     if   a_part < b_part: return a
     elif a_part > b_part: return b

@@ -53,7 +53,7 @@ def bed_row_from_line( line ):
     score   = line[4] if len(line) > 4 else 0.0
     strand  = line[5] if len(line) > 5 and line[5] in ('+','-') else '.'
     extra   = line[6:] if len(line) > 6 else []
-    k       = 0
+    k       = None
 
     return bed_row( chrom, start, end, name, score, strand, extra, k )
 
@@ -120,7 +120,15 @@ def subtract_bed( xs, ys ):
     heapify( ys )
     stderr.write( 'done\n' )
 
+    xslen = len(xs)
+    it = 0
+
     while xs and ys:
+
+        if it % 5000 == 0:
+            stderr.write( '\t%0.1f%%\n' % (100.0 - 100.0*(float(len(xs)) / xslen)) )
+        it += 1
+
         x = xs[0]
         y = ys[0]
 
@@ -141,6 +149,7 @@ def subtract_bed( xs, ys ):
             # overlap!
             i = 0
             if x.start < y.start:
+                ki = 1 if x.k == None else x.k
                 heappush( zs, bed_row( chrom  = x.chrom,
                                        start  = x.start,
                                        end    = y.start,
@@ -148,7 +157,7 @@ def subtract_bed( xs, ys ):
                                        score  = x.score,
                                        strand = x.strand,
                                        extra  = x.extra,
-                                       k      = x.k + 1 ) )
+                                       k      = ki ) )
 
                 heappop(xs)
                 if x.end > y.end:
@@ -159,7 +168,7 @@ def subtract_bed( xs, ys ):
                                            score  = x.score,
                                            strand = x.strand,
                                            extra  = x.extra,
-                                           k      = x.k + 2 ) )
+                                           k      = ki + 1 ) )
             else:
                 i = -1
                 while True:
@@ -170,6 +179,7 @@ def subtract_bed( xs, ys ):
                 heappop(xs)
                 # x is not entirely covered by intervals
                 if x.end > ys[i].end:
+                    ki = 1 if x.k == None else x.k
                     heappush( xs, bed_row( chrom  = x.chrom,
                                            start  = ys[i].start,
                                            end    = x.end,
@@ -177,7 +187,7 @@ def subtract_bed( xs, ys ):
                                            score  = x.score,
                                            strand = x.strand,
                                            extra  = x.extra,
-                                           k      = x.k ) )
+                                           k      = ki ) )
 
 
     stderr.write( 'done.\n' )
@@ -197,7 +207,7 @@ desc = 'Subtract the intervals in b from those in a. For\n' \
 
 def main():
     ap = argparse.ArgumentParser( description = desc )
-    ap.add_argument( '-u', '--stranded', action = 'store_true', default=True,
+    ap.add_argument( '-u', '--unstranded', action = 'store_true', default=True,
                      dest='unstranded',
                      help='do not consider strand (default: do consider strand)' )
 
