@@ -3,7 +3,7 @@
 
 from sys         import stdout, stdin, stderr, argv
 from collections import namedtuple
-from bisect      import insort
+from heapq       import *
 import argparse
 
 
@@ -106,18 +106,78 @@ def print_bed( zs ):
                         strand = z.strand ) )
 
 
+def merge_bed_rows( row1, row2 ):
+    assert row1.strand == row2.strand
+    assert row1.seqname == row2.seqname
+
+
+    # drop anything extra for now
+    return bed_row( seqname = row1.seqname,
+                    start   = min(row1.start,row2.start),
+                    end     = max(row1.end,row2.end),
+                    name    = row1.name,
+                    score   = row1.score,
+                    strand  = row1.strand,
+                    extra   = [],
+                    k       = row1.k )
+
+
+
+def flatten_bed( ys ):
+
+    stderr.write( 'flattening ... ' )
+
+    ys.sort()
+
+    i = 0
+    j = 1
+    while j < len(rows):
+        if rows[i] == None:
+            i += 1
+            continue
+
+        if rows[j] == None:
+            j += 1
+            continue
+
+        if i >= j:
+            j += 1
+            continue
+
+
+        if (rows[i].seqname, rows[i].strand) != (rows[j].seqname,rows[j].strand):
+            i += 1
+            j += 1
+            continue
+
+        if rows[i].end >= rows[j].start:
+            rows[i] = merge_bed_rows( rows[i], rows[j] )
+            rows[j] = None
+        else:
+            i += 1
+
+    rows = [ row for row in rows if row != None ]
+
+    stderr.write( 'done.\n' )
+
+    return rows
+
+
 def subtract_bed( xs, ys ):
 
+
     stderr.write( 'subtracting ... \n' )
+
+    ys = flatten_bed( ys )
 
     zs = []
 
     stderr.write( '\tsorting a ... ' )
-    xs.sort()
+    heapify(xs)
     stderr.write( 'done\n' )
 
     stderr.write( '\tsorting b ... ' )
-    ys.sort()
+    heapify(ys)
     stderr.write( 'done\n' )
 
     xslen = len(xs)
@@ -134,60 +194,50 @@ def subtract_bed( xs, ys ):
 
 
         if stranded and (x.chrom,x.strand) < (y.chrom,y.strand):
-            insort( zs, xs.pop(0) )
+            heappush( zs, heappop(xs) )
         elif stranded and (x.chrom,x.strand) > (y.chrom,y.strand):
-            ys.pop(0)
+            heappop(ys)
         elif not stranded and x.chrom < y.chrom:
-            insort( zs, xs.pop(0) )
+            heappush( zs, heappop(xs) )
         elif not stranded and x.chrom > y.chrom:
-            ys.pop(0)
+            heappop(ys)
         elif y.start >= x.end:
-            insort( zs, xs.pop(0) )
+            heappush( zs, heappop(xs) )
         elif y.end <= x.start:
-            ys.pop(0)
+            heappop(ys)
+        elif x.start < y.start:
+            ki = 1 if x.k == None else x.k
+            heappop(xs)
+            heappush( zs, bed_row( chrom  = x.chrom,
+                                   start  = x.start,
+                                   end    = y.start,
+                                   name   = x.name,
+                                   score  = x.score,
+                                   strand = x.strand,
+                                   extra  = x.extra,
+                                   k      = ki ) )
+
+            if x.end > y.end:
+                heappush( xs, bed_row( chrom  = x.chrom,
+                                       start  = y.end,
+                                       end    = x.end,
+                                       name   = x.name,
+                                       score  = x.score,
+                                       strand = x.strand,
+                                       extra  = x.extra,
+                                       k      = ki + 1 ) )
         else:
-            # overlap!
-            i = 0
-            if x.start < y.start:
-                ki = 1 if x.k == None else x.k
-                xs.pop(0)
-                insort( zs, bed_row( chrom  = x.chrom,
-                                     start  = x.start,
-                                     end    = y.start,
-                                     name   = x.name,
-                                     score  = x.score,
-                                     strand = x.strand,
-                                     extra  = x.extra,
-                                     k      = ki ) )
+            heappop(xs)
 
-                if x.end > y.end:
-                    insort( xs, bed_row( chrom  = x.chrom,
-                                         start  = y.end,
-                                         end    = x.end,
-                                         name   = x.name,
-                                         score  = x.score,
-                                         strand = x.strand,
-                                         extra  = x.extra,
-                                         k      = ki + 1 ) )
-            else:
-                i = -1
-                while True:
-                    if i > 0 and ys[i-1].start < x.end:
-                        i -= 1
-                    else: break
-
-                xs.pop(0)
-                # x is not entirely covered by intervals
-                if x.end > ys[i].end:
-                    ki = 1 if x.k == None else x.k
-                    insort( xs, bed_row( chrom  = x.chrom,
-                                         start  = ys[i].start,
-                                         end    = x.end,
-                                         name   = x.name,
-                                         score  = x.score,
-                                         strand = x.strand,
-                                         extra  = x.extra,
-                                         k      = ki ) )
+            if x.end > y.end:
+                heappush( xs, bed_row( chrom  = x.chrom,
+                                       start  = y.end,
+                                       end    = x.end,
+                                       name   = x.name,
+                                       score  = x.score,
+                                       strand = x.strand,
+                                       extra  = x.extra,
+                                       k      = ki + 1 ) )
 
 
     stderr.write( 'done.\n' )
