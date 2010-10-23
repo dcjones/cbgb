@@ -3,7 +3,7 @@
 
 from sys         import stdout, stdin, stderr, argv
 from collections import namedtuple
-from heapq       import *
+from bisect      import insort
 import argparse
 
 
@@ -113,11 +113,11 @@ def subtract_bed( xs, ys ):
     zs = []
 
     stderr.write( '\tsorting a ... ' )
-    heapify( xs )
+    xs.sort()
     stderr.write( 'done\n' )
 
     stderr.write( '\tsorting b ... ' )
-    heapify( ys )
+    ys.sort()
     stderr.write( 'done\n' )
 
     xslen = len(xs)
@@ -134,41 +134,41 @@ def subtract_bed( xs, ys ):
 
 
         if stranded and (x.chrom,x.strand) < (y.chrom,y.strand):
-            heappush( zs, heappop(xs) )
+            insort( zs, xs.pop(0) )
         elif stranded and (x.chrom,x.strand) > (y.chrom,y.strand):
-            heappop( ys )
+            ys.pop(0)
         elif not stranded and x.chrom < y.chrom:
-            heappush( zs, heappop(xs) )
+            insort( zs, xs.pop(0) )
         elif not stranded and x.chrom > y.chrom:
-            heappop( ys )
+            ys.pop(0)
         elif y.start >= x.end:
-            heappush( zs, heappop(xs) )
+            insort( zs, xs.pop(0) )
         elif y.end <= x.start:
-            heappop( ys )
+            ys.pop(0)
         else:
             # overlap!
             i = 0
             if x.start < y.start:
                 ki = 1 if x.k == None else x.k
-                heappop(xs)
-                heappush( zs, bed_row( chrom  = x.chrom,
-                                       start  = x.start,
-                                       end    = y.start,
-                                       name   = x.name,
-                                       score  = x.score,
-                                       strand = x.strand,
-                                       extra  = x.extra,
-                                       k      = ki ) )
+                xs.pop(0)
+                insort( zs, bed_row( chrom  = x.chrom,
+                                     start  = x.start,
+                                     end    = y.start,
+                                     name   = x.name,
+                                     score  = x.score,
+                                     strand = x.strand,
+                                     extra  = x.extra,
+                                     k      = ki ) )
 
                 if x.end > y.end:
-                    heappush( xs, bed_row( chrom  = x.chrom,
-                                           start  = y.end,
-                                           end    = x.end,
-                                           name   = x.name,
-                                           score  = x.score,
-                                           strand = x.strand,
-                                           extra  = x.extra,
-                                           k      = ki + 1 ) )
+                    insort( xs, bed_row( chrom  = x.chrom,
+                                         start  = y.end,
+                                         end    = x.end,
+                                         name   = x.name,
+                                         score  = x.score,
+                                         strand = x.strand,
+                                         extra  = x.extra,
+                                         k      = ki + 1 ) )
             else:
                 i = -1
                 while True:
@@ -176,18 +176,18 @@ def subtract_bed( xs, ys ):
                         i -= 1
                     else: break
 
-                heappop(xs)
+                xs.pop(0)
                 # x is not entirely covered by intervals
                 if x.end > ys[i].end:
                     ki = 1 if x.k == None else x.k
-                    heappush( xs, bed_row( chrom  = x.chrom,
-                                           start  = ys[i].start,
-                                           end    = x.end,
-                                           name   = x.name,
-                                           score  = x.score,
-                                           strand = x.strand,
-                                           extra  = x.extra,
-                                           k      = ki ) )
+                    insort( xs, bed_row( chrom  = x.chrom,
+                                         start  = ys[i].start,
+                                         end    = x.end,
+                                         name   = x.name,
+                                         score  = x.score,
+                                         strand = x.strand,
+                                         extra  = x.extra,
+                                         k      = ki ) )
 
 
     stderr.write( 'done.\n' )
