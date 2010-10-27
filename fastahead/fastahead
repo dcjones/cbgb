@@ -1,0 +1,31 @@
+#!/usr/bin/env python
+
+'''
+Get the first n sequences from a fasta file.
+'''
+
+from sys import stdout, stdin, stderr, argv
+import Bio.SeqIO
+import argparse
+
+
+def main():
+    desc = 'Get the first n sequences form a fasta file.'
+    ap = argparse.ArgumentParser( description = desc )
+    ap.add_argument( '-n', '--sequences', type=int, metavar='n',
+                     default=10, help = 'number of sequences to print' )
+    ap.add_argument( 'fin', default=stdin, nargs='?', metavar='FILE',
+                     help = 'fasta file (default: stdin)', type=argparse.FileType('r') )
+    args = ap.parse_args()
+
+    for line in args.fin:
+        if line[0] == '>':
+            if n <= 0: break
+            else: n -= 1
+
+        stdout.write( line )
+
+
+if __name__ == '__main__':
+    main()
+

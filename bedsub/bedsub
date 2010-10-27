@@ -29,7 +29,7 @@ class bed_row:
 
     def __cmp__( self, y ):
         if stranded:
-            return cmp( (self.chrom, self.start, self.end),
+           return cmp( (self.chrom, self.start, self.end),
                         (y.chrom, y.start, y.end) )
         else:
             return cmp( (self.chrom, self.strand, self.start, self.end),
