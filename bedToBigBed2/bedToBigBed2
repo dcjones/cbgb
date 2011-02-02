@@ -15,6 +15,7 @@ def parse_chroms( chrom_fn ):
         row = line.strip('\n').split('\t')
         chroms.add( row[0] )
 
+    return chroms
 
 def clean_bed( in_fn, chroms ):
     '''
