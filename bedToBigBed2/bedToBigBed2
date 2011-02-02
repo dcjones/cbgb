@@ -1,0 +1,86 @@
+#!/usr/bin/env python
+
+import argparse
+import subprocess
+import re
+from math     import log10
+from tempfile import NamedTemporaryFile
+from sys      import stderr
+
+
+def parse_chroms( chrom_fn ):
+    ''' Get the set of chromosomes present in the chrom file. '''
+    chroms = set()
+    for line in open( chrom_fn ):
+        row = line.strip('\n').split('\t')
+        chroms.add( row[0] )
+
+
+def clean_bed( in_fn, chroms ):
+    '''
+    Clean the bed file to comply with the requirements of bedToBigBed.
+    In particular:
+        1. convert any real valued scores to the nearest integer Phred score.
+        2. remove any intervals not specified in the chroms file
+        3. sort
+    '''
+
+    stderr.write( 'cleaning bed ... ' )
+
+    rows = []
+    for line in open(in_fn):
+        row = line.strip('\n').split('\t')
+
+        if chroms and row[0] not in chroms: continue
+
+        row[1] = int(row[1])
+        row[2] = int(row[2])
+
+        if len(row) > 4:
+            # try to convert floating point scores to phred scores rounded to
+            # the nearest integer
+            if re.search( r'(e|\.)', row[4] ):
+                try:
+                    row[4] = int( -10 * log10( float(row[4]) ) )
+                except ValueError:
+                    row[4] = 0
+            else:
+                try:
+                    row[4] = int(row[4])
+                except:
+                    row[4] = 0
+
+        rows.append(row)
+
+    rows.sort()
+
+    out = NamedTemporaryFile( delete = False )
+    for row in rows:
+        out.write( '\t'.join( map( str, row ) ) + '\n' )
+    out.close()
+
+    stderr.write( 'done.\n' )
+    return out
+
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument( 'in_fn',      metavar = 'in.bed' )
+    ap.add_argument( 'chrom_fn',  metavar = 'chrom.sizes' )
+    ap.add_argument( 'out_fn',     metavar = 'out.bb' )
+    args = ap.parse_args()
+
+    chroms  = parse_chroms( args.chrom_fn )
+    clean_f = clean_bed( args.in_fn, chroms )
+
+    proc = subprocess.Popen(
+            [ 'bedToBigBed',
+              clean_f.name,
+              args.chrom_fn,
+              args.out_fn ] )
+    proc.wait()
+
+
+if __name__ == '__main__': main()
+
