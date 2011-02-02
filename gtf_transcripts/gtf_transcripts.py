@@ -12,6 +12,7 @@
 
 
 import re
+import argparse
 from collections import namedtuple, defaultdict
 from copy        import copy
 from sys         import stdout, stdin, stderr
@@ -42,7 +43,7 @@ def gtf_row_from_gtf_line( line ):
     attributes = {}
 
     for mat in re.finditer( r'\s*(\w+)\s+(([\.\w]+)|"([\.\w]+)")\s*;', line[8] ):
-        attributes[mat.group(1)] = mat.group(2) # .strip('"')
+        attributes[mat.group(1)] = mat.group(2).strip('"')
 
     return gtf_row( seqname, source, feature, \
                     start, end, score, strand, frame, \
@@ -77,7 +78,7 @@ def parse_gtf( gtf_f ):
 
 
 
-def get_transcripts( rows ):
+def get_transcripts( rows, feature = 'transcript_id' ):
 
     # organize by transcript
 
@@ -85,8 +86,8 @@ def get_transcripts( rows ):
 
     transcripts = defaultdict(list)
     for row in rows:
-        if 'transcript_id' in row.attributes:
-            transcripts[row.attributes['transcript_id']].append( row )
+        if feature in row.attributes:
+            transcripts[row.attributes[feature]].append( row )
 
     stderr.write( 'done (%d transcripts).\n' % len(transcripts) )
 
@@ -142,8 +143,15 @@ def print_bed( fout, rows ):
 
 def main():
 
+    ap = argparse.ArgumentParser()
+    ap.add_argument( '-g', '--gene', action='store_true', default=False )
+    args = ap.parse_args()
+
+    if args.gene: feature = 'gene_id'
+    else:         feature = 'transcript_id'
+
     rows = parse_gtf(stdin)
-    transcripts = get_transcripts(rows)
+    transcripts = get_transcripts( rows, feature )
     print_bed(stdout,transcripts)
     #print_gtf( stdout, transcripts )
 

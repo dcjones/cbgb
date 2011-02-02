@@ -5,6 +5,7 @@ from sys         import stdout, stdin, stderr, argv
 from collections import namedtuple
 from heapq       import *
 import argparse
+import gtf
 
 
 
@@ -13,70 +14,79 @@ stranded = True
 
 #bed_row = namedtuple( 'bed_row', 'chrom start end name score strand extra k' )
 
+if 0:
+
+    class bed_row:
+        def  __init__( self, chrom, start, end, name, score, strand, extra, k=0 ):
+            self.chrom  = chrom
+            self.start  = start
+            self.end    = end
+            self.name   = name
+            self.score  = score
+            self.strand = strand
+            self.extra  = extra
+            self.k      = k
 
 
-class bed_row:
-    def  __init__( self, chrom, start, end, name, score, strand, extra, k=0 ):
-        self.chrom  = chrom
-        self.start  = start
-        self.end    = end
-        self.name   = name
-        self.score  = score
-        self.strand = strand
-        self.extra  = extra
-        self.k      = k
+        def __cmp__( self, y ):
+            if stranded:
+               return cmp( (self.chrom, self.start, self.end),
+                            (y.chrom, y.start, y.end) )
+            else:
+                return cmp( (self.chrom, self.strand, self.start, self.end),
+                            (y.chrom, y.strand, y.start, y.end) )
 
-
-    def __cmp__( self, y ):
-        if stranded:
-           return cmp( (self.chrom, self.start, self.end),
-                        (y.chrom, y.start, y.end) )
-        else:
-            return cmp( (self.chrom, self.strand, self.start, self.end),
-                        (y.chrom, y.strand, y.start, y.end) )
-
-    def __repr__( self ):
-        return repr((self.chrom,self.start,self.end,self.name,self.score,self.strand,self.k))
+        def __repr__( self ):
+            return repr((self.chrom,self.start,self.end,self.name,self.score,self.strand,self.k))
 
 
 
 
-def bed_row_from_line( line ):
-    line = line.strip('\n').split('\t')
-    if len(line) < 3:
-        raise TypeError
+    def bed_row_from_line( line ):
+        line = line.strip('\n').split('\t')
+        if len(line) < 3:
+            raise TypeError
 
-    chrom   = line[0]
-    start   = int(line[1])
-    end     = int(line[2])
-    name    = line[3] if len(line) > 3 else ''
-    score   = line[4] if len(line) > 4 else 0.0
-    strand  = line[5] if len(line) > 5 and line[5] in ('+','-') else '.'
-    extra   = line[6:] if len(line) > 6 else []
-    k       = None
+        chrom   = line[0]
+        start   = int(line[1])
+        end     = int(line[2])
+        name    = line[3] if len(line) > 3 else ''
+        score   = line[4] if len(line) > 4 else 0.0
+        strand  = line[5] if len(line) > 5 and line[5] in ('+','-') else '.'
+        extra   = line[6:] if len(line) > 6 else []
+        k       = None
 
-    return bed_row( chrom, start, end, name, score, strand, extra, k )
+        return bed_row( chrom, start, end, name, score, strand, extra, k )
 
 
-def parse_bed( bed_f ):
+    def parse_bed( bed_f ):
 
+        stderr.write( 'parsing BED ... ' )
+
+        i = 0
+        rows = []
+        for line in bed_f:
+            i += 1
+            try:
+                row = bed_row_from_line(line)
+            except TypeError:
+                stderr.write( 'BED line %d is malformed. Skipping.\n' % i )
+                continue
+
+            rows.append(row)
+
+        stderr.write( 'done (%d rows).\n' % len(rows) )
+
+        return rows
+
+
+def parse_bed( bed_fn ):
     stderr.write( 'parsing BED ... ' )
-
-    i = 0
-    rows = []
-    for line in bed_f:
-        i += 1
-        try:
-            row = bed_row_from_line(line)
-        except TypeError:
-            stderr.write( 'BED line %d is malformed. Skipping.\n' % i )
-            continue
-
-        rows.append(row)
-
+    f = gtf.bed_file( bed_fn )
+    rows = list(f)
     stderr.write( 'done (%d rows).\n' % len(rows) )
-
     return rows
+
 
 
 def print_bed( zs ):
@@ -86,7 +96,7 @@ def print_bed( zs ):
     for z in zs:
         if z.k > 0:
             stdout.write(
-                    '{chrom}\t{start}\t{end}\t{name}.{k}\t{score}\t{strand}\n'.format(
+                    '{chrom}\t{start}\t{end}\t{name}.{k}\t{score}\t{strand}\t{name}\n'.format(
                         chrom  = z.chrom,
                         start  = z.start,
                         end    = z.end,
@@ -97,7 +107,7 @@ def print_bed( zs ):
 
         else:
             stdout.write(
-                    '{chrom}\t{start}\t{end}\t{name}\t{score}\t{strand}\n'.format(
+                    '{chrom}\t{start}\t{end}\t{name}\t{score}\t{strand}\t{name}\n'.format(
                         chrom  = z.chrom,
                         start  = z.start,
                         end    = z.end,
@@ -107,12 +117,12 @@ def print_bed( zs ):
 
 
 def merge_bed_rows( row1, row2 ):
-    assert row1.strand == row2.strand
+    assert (not stranded) or row1.strand == row2.strand
     assert row1.seqname == row2.seqname
 
 
     # drop anything extra for now
-    return bed_row( seqname = row1.seqname,
+    return bed_row( chrom = row1.chrom,
                     start   = min(row1.start,row2.start),
                     end     = max(row1.end,row2.end),
                     name    = row1.name,
@@ -123,20 +133,20 @@ def merge_bed_rows( row1, row2 ):
 
 
 
-def flatten_bed( ys ):
+def flatten_bed( rows ):
 
     stderr.write( 'flattening ... ' )
 
-    ys.sort()
+    rows.sort()
 
     i = 0
     j = 1
     while j < len(rows):
-        if rows[i] == None:
+        if rows[i] is None:
             i += 1
             continue
 
-        if rows[j] == None:
+        if rows[j] is None:
             j += 1
             continue
 
@@ -145,7 +155,7 @@ def flatten_bed( ys ):
             continue
 
 
-        if (rows[i].seqname, rows[i].strand) != (rows[j].seqname,rows[j].strand):
+        if (rows[i].chrom, rows[i].strand) != (rows[j].chrom, rows[j].strand):
             i += 1
             j += 1
             continue
@@ -156,7 +166,7 @@ def flatten_bed( ys ):
         else:
             i += 1
 
-    rows = [ row for row in rows if row != None ]
+    rows = [ row for row in rows if row is not None ]
 
     stderr.write( 'done.\n' )
 
@@ -167,6 +177,8 @@ def subtract_bed( xs, ys ):
 
 
     stderr.write( 'subtracting ... \n' )
+
+    stderr.write( 'stranded = %r\n' % stranded )
 
     ys = flatten_bed( ys )
 
@@ -179,6 +191,8 @@ def subtract_bed( xs, ys ):
     stderr.write( '\tsorting b ... ' )
     heapify(ys)
     stderr.write( 'done\n' )
+
+    stderr.write( 'len = %d\n' % len(xs) )
 
     xslen = len(xs)
     it = 0
@@ -194,18 +208,25 @@ def subtract_bed( xs, ys ):
 
 
         if stranded and (x.chrom,x.strand) < (y.chrom,y.strand):
+            stderr.write('(A)\n')
             heappush( zs, heappop(xs) )
         elif stranded and (x.chrom,x.strand) > (y.chrom,y.strand):
+            stderr.write('(B)\n')
             heappop(ys)
         elif not stranded and x.chrom < y.chrom:
+            stderr.write('(C)\n')
             heappush( zs, heappop(xs) )
         elif not stranded and x.chrom > y.chrom:
+            stderr.write('(D)\n')
             heappop(ys)
         elif y.start >= x.end:
+            stderr.write('(E)\n')
             heappush( zs, heappop(xs) )
         elif y.end <= x.start:
+            stderr.write('(F)\n')
             heappop(ys)
         elif x.start < y.start:
+            stderr.write('(G)\n')
             ki = 1 if x.k == None else x.k
             heappop(xs)
             heappush( zs, bed_row( chrom  = x.chrom,
@@ -227,6 +248,8 @@ def subtract_bed( xs, ys ):
                                        extra  = x.extra,
                                        k      = ki + 1 ) )
         else:
+            stderr.write('(H)\n')
+            ki = 1 if x.k == None else x.k
             heappop(xs)
 
             if x.end > y.end:
@@ -262,14 +285,17 @@ def main():
                      help='do not consider strand (default: do consider strand)' )
 
     ap.add_argument( 'a', metavar='a.bed', help='original from which b.bed shall be subtracted.',
-                     type=argparse.FileType('r') )
+                     type=str )
 
     ap.add_argument( 'b', metavar='b.bed', help='intervals to subtract from a.bed',
-                     type=argparse.FileType('r') )
+                     type=str )
 
     args = ap.parse_args()
 
+    global stranded
     stranded = not args.unstranded
+
+    stderr.write( 'stranded = %r\n' % stranded )
 
     a = parse_bed( args.a )
     b = parse_bed( args.b )

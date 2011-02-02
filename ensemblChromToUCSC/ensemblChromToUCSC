@@ -7,19 +7,22 @@ import re
 
 
 
-pat = re.compile( r'^\d+$' )
+pat = re.compile( r'^(\d+)[a-z]?$' )
 
 
 for line in stdin:
     row = line.split('\t')
 
-    if pat.match(row[0]):
-        if int(row[0]) < 100:
+    mat = pat.match(row[0])
+    if mat:
+        if int(mat.group(1)) < 100:
             row[0] = 'chr' + row[0]
     elif row[0] in ('X','Y'):
         row[0] = 'chr' + row[0]
     elif row[0] == 'MT':
         row [0] = 'chrM'
+    elif re.search( 'random', row[0] ):
+        row[0] = 'chr' + row[0]
 
     stdout.write( '\t'.join(row) )
 
