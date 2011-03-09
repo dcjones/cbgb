@@ -48,7 +48,7 @@ int main( int arg, char* argv[] )
 
 
         if( mat == 2 ) {
-            fprintf( stderr, "MATCH: %d-%d\n", ovec[2], ovec[3] );
+            /* fprintf( stderr, "MATCH: %d-%d\n", ovec[2], ovec[3] ); */
 
             if( strncmp( "MT", line+ovec[2], ovec[3]-ovec[2] ) == 0 ) {
                 fwrite( line, sizeof(char), ovec[2], stdout );

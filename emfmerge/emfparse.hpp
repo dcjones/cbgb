@@ -22,6 +22,7 @@ class emfparse
 
         size_t n;
         char* ref_seqname;
+        char* ref_seq;
         string ref_name;
         map<string,char*> msa;
 };

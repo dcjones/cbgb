@@ -59,7 +59,6 @@ void* safe_realloc( void* ptr, size_t size )
 
 emfparse::emfparse( vector<string> species, const char* ref_fn, FILE* emf_f )
 {
-    char* ref_seq;
     parse_ref( ref_fn, &ref_seqname, &ref_seq );
 
     // assume the first species in the list is the reference
@@ -72,7 +71,7 @@ emfparse::emfparse( vector<string> species, const char* ref_fn, FILE* emf_f )
     fprintf( stderr, "allocating memory ... " );
     char* seq;
     vector<string>::const_iterator i = species.begin();
-    i++;
+    i++; // skip reference
     for( ; i != species.end(); i++ ) {
         seq = (char*)calloc( n, sizeof(char) );
         memset( seq, '-', n );
@@ -154,8 +153,18 @@ parse_ref_done:
     *seqname_out = strdup(seqname.c_str());
     *seq_out     = seq;
 
-    fprintf( stderr, "done.\n" );
+    fprintf( stderr, "done. (%zunt)\n", strlen(seq) );
 }
+
+
+
+
+struct pos
+{
+    int col, row;
+    size_t start, end;
+    int strand;
+};
 
 
 
@@ -164,9 +173,7 @@ void emfparse::parse( FILE* f )
 {
     fprintf( stderr, "parsing EMF file ... \n" );
 
-    size_t maxspecies = 500;
-
-    size_t maxline = 4096;
+    size_t maxline = 10000;
     char* line = new char[maxline];
     size_t linelen;
 
@@ -186,23 +193,24 @@ void emfparse::parse( FILE* f )
 
     emf_state s = emf_state_header;
 
-    string ref_chrom;
-    size_t ref_start, ref_end;
-    int ref_strand;
+    pos tmp_pos;
+    std::vector<pos> ref_pos;
+    std::vector<pos>::iterator i;
+
+
     string seq_name, seq_chrom, seq_start, seq_end, seq_strand;
 
     // keep track of the order of the columns
-    int ref_col_num = -1;
     int seq_col_num = 0;
-    char** seqs = new char*[maxspecies];
-    memset( seqs, 0, maxspecies*sizeof(char*) );
+    std::vector<char*> seqs;
 
 
     // keep track of the current row and column, relative to the start of the block
-    int row, col;
+    int col;
 
 
     while( fgets( line, maxline, f ) != NULL ) {
+
         linelen = strlen(line);
 
         if( line[0] == '#' ) continue;                     // skip comments
@@ -217,24 +225,29 @@ void emfparse::parse( FILE* f )
                 }
 
                 if( seq_name == ref_name ) {
-                    if( ref_col_num == -1 ) {
-                        ref_col_num = seq_col_num;
-                        ref_chrom   = seq_chrom;
-                        ref_start   = atoi(seq_start.c_str());
-                        ref_end     = atoi(seq_end.c_str());
-                        ref_strand  = atoi(seq_strand.c_str());
-                        seqs[seq_col_num] = msa[seq_name];
+
+                    seqs.push_back(msa[seq_name]);
+
+                    if( seq_chrom == ref_seqname ) {
+                        tmp_pos.col    = seq_col_num;
+                        tmp_pos.row    = 0;
+                        tmp_pos.start  = atoi(seq_start.c_str());
+                        tmp_pos.end    = atoi(seq_end.c_str());
+                        tmp_pos.strand = atoi(seq_strand.c_str());
+                        ref_pos.push_back(tmp_pos);
                     }
                 }
                 else if( msa.find(seq_name) != msa.end() ) {
-                    seqs[seq_col_num] = msa[seq_name];
+                    seqs.push_back(msa[seq_name]);
+                }
+                else {
+                    seqs.push_back(NULL);
                 }
 
                 seq_col_num++;
             }
             if( linelen >= 4 && strncmp( line, "DATA", 4 ) == 0 ) {
                 s = emf_state_data;
-                row = 0;
             }
         }
 
@@ -243,66 +256,66 @@ void emfparse::parse( FILE* f )
             if( linelen >= 2 && strncmp( line, "//", 2 ) == 0 ) {
                 blocknum++;
                 s = emf_state_header;
+                seqs.clear();
+                ref_pos.clear();
                 seq_col_num = 0;
-                ref_col_num = -1;
-                memset( seqs, 0, maxspecies*sizeof(char*) );
                 if( blocknum % 100 == 0 ) fprintf( stderr, "\t%zd blocks read ...\n", blocknum );
                 continue;
             }
 
-            if( ref_col_num == -1 || ref_chrom != ref_seqname ) continue;
-
-            if( line[ref_col_num] == '-' ) {
-                continue;
+            if( ref_pos.size() > 1 ) {
+                fprintf( stderr, "(%d)\n", ref_pos.size() );
             }
 
-            for( col = 0; !isspace(line[col]); col++ ) {
-                if( col == ref_col_num ) {
-                    char a, b;
-                    if( ref_strand == 1 ) {
-                        a = tolower(seqs[col][ref_start+row-1]);
-                        b = tolower(line[col]);
+            for( i = ref_pos.begin(); i != ref_pos.end(); i++ ) {
+                if( line[i->col] == '-' ) continue;
+
+                for( col = 0; !isspace(line[col]); col++ ) {
+                    if( seqs[col] == NULL ) continue;
+
+                    // positive strand
+                    else if( i->strand == 1 ) {
+                        if( i->start + i->row >= n ) {
+                            fprintf( stderr, "Index out of bounds: %zd / %zd\n",
+                                     i->start + i->row - 1, n );
+                            exit(1);
+                        }
+
+                        if( seqs[col] == ref_seq ) {
+                            if( tolower(seqs[col][i->start + i->row - 1]) != tolower(line[col]) ) {
+                                fprintf( stderr, "Ref mismatch (+): %c <-> %c\n", seqs[col][i->start + i->row - 1], line[col] );
+                            }
+                        }
+                        else {
+                            seqs[col][i->start + i->row - 1] = line[col];
+                        }
                     }
+
+                    // negative strand
                     else {
-                        a = tolower(seqs[col][ref_end-row-1]);
-                        b = tolower(complement(line[col]));
-                    }
+                        if( i->end - i->row - 1 >= n ) {
+                            fprintf( stderr, "Index out of bounds: %zd / %zd\n",
+                                     i->end - i->row - 1, n );
+                            exit(1);
+                        }
 
-                    if( a != b ) {
-                        fprintf( stderr, "\twarning: inconsistent reference (%s:%zd-%zd(%d) + %d,  (%c != %c)\n",
-                                         ref_seqname, ref_start, ref_end, ref_strand, row, a, b );
+                        if( seqs[col] == ref_seq ) {
+                            if( tolower(seqs[col][i->end - i->row - 1]) != tolower(complement(line[col])) ) {
+                                fprintf( stderr, "Ref mismatch (+): %c <-> %c\n", seqs[col][i->end - i->row - 1], complement(line[col]) );
+                            }
+                        }
+                        else {
+                            seqs[col][i->end- i->row - 1] = complement(line[col]);
+                        }
                     }
                 }
-                else if( seqs[col] == NULL ) continue;
 
-
-                // positive strand
-                else if( ref_strand == 1 ) {
-                    if( ref_start + row >= n ) {
-                        fprintf( stderr, "Index out of bounds: %zd / %zd\n",
-                                 ref_start + row, n );
-                        exit(1);
-                    }
-                    seqs[col][ref_start+row-1] = line[col];
-                }
-
-                // negative strind
-                else {
-                    if( ref_end - row - 1 >= n ) {
-                        fprintf( stderr, "Index out of bounds: %zd / %zd\n",
-                                 ref_start + row, n );
-                        exit(1);
-                    }
-                    seqs[col][ref_end-row-1] = complement(line[col]);
-                }
+                i->row++;
             }
-            
-            row++;
         }
     }
 
     delete[] line;
-    delete[] seqs;
 
     fprintf( stderr, "done.\n" );
 }
