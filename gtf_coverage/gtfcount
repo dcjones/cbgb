@@ -1,0 +1,161 @@
+#!/usr/bin/env python
+
+'''
+gtfcount
+
+A program to count reads from an (indexed) BAM file within genomic features
+(e.g. genes) as defined by a GTF file, with the option to adjust for sequencing
+bias using 'seqbias'.
+
+
+Daniel C. Jones <dcjones@cs.washington.edu>
+2011.03.13.14.54
+'''
+
+
+import argparse
+import numpy         as np
+import rpy2.robjects as ro
+from   heapq       import heapify, heappush, heappop
+from   gtf         import gtf_file, gtf_row
+from   sys         import stdout, stdin, stderr
+from   collections import defaultdict
+from   rpy2.robjects          import r as R
+from   rpy2.robjects.packages import importr
+
+
+
+# prepare R
+seqbias   = importr('seqbias')
+multicore = importr('multicore')
+IRanges = R['IRanges']
+GRanges = R['GRanges']
+
+def rows_overlap(u, v, stranded = True):
+    b = u.start <= v.end and u.end >= v.start
+    return b and u.seqname == v.seqname and ((not stranded) or u.strand == v.strand)
+
+
+def heap_row(row, stranded = True):
+    if stranded:
+        return (row.seqname, row.strand, row.start, row.end, row)
+    else:
+        return (row.seqname, row.start, row.end, row)
+
+def make_granges(rows, stranded = True):
+    return GRanges(seqnames = ro.StrVector([row.seqname for row in rows]),
+                   ranges   = IRanges(start = ro.IntVector([row.start for row in rows]),
+                                      end   = ro.IntVector([row.end   for row in rows])),
+                   strand   = ro.StrVector([('+' if row.strand == 0 else '-') for row in rows]))
+
+
+
+def count(xs):
+    ro.globalenv
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('gtf_fn', metavar = 'annotations.gtf')
+    ap.add_argument('bam_fn', metavar = 'reads.bam', nargs = '+')
+    ap.add_argument('-S', '--unstranded', action = 'store_false',
+                    default = True, dest = 'stranded',
+                    help = 'data is not strand specific')
+    ap.add_argument('-f', '--feature', default = 'exon',
+                    help = 'genomic feature to consider (default: exon)' )
+    ap.add_argument('-a', '--attribute', default = 'gene_id',
+                    help = 'group counts by this attribute (default gene_id)')
+    args = ap.parse_args()
+
+
+    # parse in all gtf exon rows
+    stderr.write('parsing gtf ... ')
+    rows = [heap_row(row, args.stranded)
+                for row in gtf_file(args.gtf_fn) if row.feature == args.feature]
+    heapify(rows)
+    stderr.write('done. (%d %ss)\n' % (len(rows), args.feature))
+
+
+    stderr.write('computing disjoint intervals ... ')
+
+    xs = [] # disjoint intervals
+
+    u = None
+    v = None
+    w = None
+
+    while rows:
+        if u is None:
+            u = heappop(rows)[-1]
+            continue
+
+        v = heappop(rows)[-1]
+
+        if rows_overlap(u, v, args.stranded):
+            if u.attributes[args.attribute] == v.attributes[args.attribute]:
+                u.end = max(u.end, v.end)
+                heappush(rows, heap_row(u, args.stranded))
+            else:
+                if u.end > v.end:
+                    w = gtf_row()
+                    (w.seqname, w.strand, w.start, w.end, w.attributes) = \
+                        (u.seqname, u.strand, v.end+1, u.end, u.attributes)
+                    heappush(rows, heap_row(w, args.stranded))
+
+                if u.start < v.start:
+                    u.end = v.start - 1
+                    xs.append(u)
+
+        else:
+            xs.append(u)
+
+        (u, v, w) = (None, None, None)
+
+    if u is not None: xs.append(u)
+
+    stderr.write('done. (%d intervals)\n' % len(xs))
+
+
+
+    stderr.write('counting reads ... ')
+
+    # map attributes to matrix indices
+    attrib = set(x.attributes[args.attribute] for x in xs)
+    attrib = dict(zip(attrib, range(len(attrib))))
+
+    (n, m) = (len(attrib), len(args.bam_fn))
+
+    # map rows to matrix indices to rows
+    idx = [list() for _ in xrange(n)]
+
+    for (i,x) in enumerate(xs):
+        idx[attrib[x.attributes[args.attribute]]].append(i)
+
+    # make a GRanges object for each gene
+    ro.globalenv['xs'] = [make_granges([xs[k] for k in ks]) for ks in idx]
+
+
+    cs = np.zeros((n, m))
+
+    for (j,bam_fn) in enumerate(args.bam_fn):
+        c = R('mclapply(xs, FUN = function(x) count.reads("%s", x, binary = F))' % bam_fn)
+
+
+
+    # TODO: how does this work for the unstranded case ?
+
+    #for (j,bam_fn) in enumerate(args.bam_fn):
+        #for (i,ks) in enumerate(idx):
+            #ro.globalenv['xs'] = make_granges([xs[k] for k in ks])
+            #c = R('sum(c(count.reads("%s", xs), recursive = T))' % (bam_fn,))[0]
+            #cs[i,j] = c
+
+            #print (i,c)
+
+    stderr.write('done.\n')
+
+
+
+
+if __name__ == '__main__': main()
+
