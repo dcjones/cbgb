@@ -135,10 +135,11 @@ def main():
 
     # map attributes to matrix indices
     attrib = set(x.attributes[args.attribute] for x in xs)
-    attrib = dict(zip(attrib, range(len(attrib))) +
-                  zip(range(len(attrib)), attrib))
 
     (n, m) = (len(attrib), len(args.bam_fn))
+
+    attrib = dict(zip(attrib, range(len(attrib))) +
+                  zip(range(len(attrib)), attrib))
 
     # map rows to matrix indices to rows
     idx = [list() for _ in xrange(n)]
