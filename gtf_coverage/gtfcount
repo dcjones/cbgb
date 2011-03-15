@@ -27,7 +27,7 @@ from   rpy2.robjects.packages import importr
 
 # prepare R
 seqbias   = importr('seqbias')
-multicore = importr('multicore')
+#multicore = importr('multicore')
 IRanges = R['IRanges']
 GRanges = R['GRanges']
 
@@ -58,6 +58,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('gtf_fn', metavar = 'annotations.gtf')
     ap.add_argument('bam_fn', metavar = 'reads.bam', nargs = '+')
+    ap.add_argument('-r', '--reference', dest = 'ref_fn', default = None)
+    ap.add_argument('-b', '--bias', dest = 'model_fn', default = None)
     ap.add_argument('-S', '--unstranded', action = 'store_false',
                     default = True, dest = 'stranded',
                     help = 'data is not strand specific')
@@ -68,13 +70,25 @@ def main():
     args = ap.parse_args()
 
 
+
+    bias = None
+    if args.model_fn is not None:
+        if args.ref_fn is None:
+            stderr.write('If bias correction is enabled, a reference ' \
+                         'sequence must be provided\n')
+            exit(1)
+        stderr.write('loading bias model ... ')
+        bias = seqbias.seqbias_load(args.ref_fn, args.model_fn)
+        ro.globalenv['bias'] = bias
+        stderr.write('done.\n')
+
+
     # parse in all gtf exon rows
     stderr.write('parsing gtf ... ')
     rows = [heap_row(row, args.stranded)
                 for row in gtf_file(args.gtf_fn) if row.feature == args.feature]
     heapify(rows)
     stderr.write('done. (%d %ss)\n' % (len(rows), args.feature))
-
 
     stderr.write('computing disjoint intervals ... ')
 
@@ -117,11 +131,12 @@ def main():
 
 
 
-    stderr.write('counting reads ... ')
+    stderr.write('counting reads ... \n')
 
     # map attributes to matrix indices
     attrib = set(x.attributes[args.attribute] for x in xs)
-    attrib = dict(zip(attrib, range(len(attrib))))
+    attrib = dict(zip(attrib, range(len(attrib))) +
+                  zip(range(len(attrib)), attrib))
 
     (n, m) = (len(attrib), len(args.bam_fn))
 
@@ -131,26 +146,32 @@ def main():
     for (i,x) in enumerate(xs):
         idx[attrib[x.attributes[args.attribute]]].append(i)
 
-    # make a GRanges object for each gene
-    ro.globalenv['xs'] = [make_granges([xs[k] for k in ks]) for ks in idx]
 
 
     cs = np.zeros((n, m))
 
     for (j,bam_fn) in enumerate(args.bam_fn):
-        c = R('mclapply(xs, FUN = function(x) count.reads("%s", x, binary = F))' % bam_fn)
+        for (i,ks) in enumerate(idx):
+            stderr.write('\t%d/%d\n' % (i+1,len(idx)))
+            ro.globalenv['xs'] = make_granges([xs[k] for k in ks])
+            ro.globalenv['cnt']  = R('count.reads("%s", xs, binary = F)' % (bam_fn,))
+
+            if bias is not None:
+                ro.globalenv['b'] = R('seqbias.predict(bias, xs)')
+                ro.globalenv['cnt'] = R('mapply(FUN = `/`, cnt, b, SIMPLIFY = F)')
+
+            cs[i,j] = R('sum(c(cnt, recursive = T))')[0]
+            stderr.write('\t(%f)\n' % (cs[i,j],))
 
 
 
-    # TODO: how does this work for the unstranded case ?
 
-    #for (j,bam_fn) in enumerate(args.bam_fn):
-        #for (i,ks) in enumerate(idx):
-            #ro.globalenv['xs'] = make_granges([xs[k] for k in ks])
-            #c = R('sum(c(count.reads("%s", xs), recursive = T))' % (bam_fn,))[0]
-            #cs[i,j] = c
-
-            #print (i,c)
+    print '\t'.join(bam_fn) # column names
+    for i in xrange(len(idx)):
+        stdout.write(attrib[i])
+        for j in xrange(len(args.bam_fn)):
+            stdout.write('\t%f' % cs[i,j])
+        stdout.write('\n')
 
     stderr.write('done.\n')
 
