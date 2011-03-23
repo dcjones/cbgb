@@ -121,12 +121,17 @@ cdef class gtf_row:
 
                     c += 1
 
+                if key_start == NULL and \
+                     key_end == NULL and \
+                   val_start == NULL and \
+                     val_end == NULL:
+                         break
 
                 if key_start == NULL or \
                    key_end == NULL or \
                    val_start == NULL or \
                    val_end == NULL:
-                       sys.stderr.write( 'Malformed GTF attribute: %s\n', s )
+                       sys.stderr.write( 'Malformed GTF attribute: %s\n' % s )
 
                 key = str(key_start[ : key_end - key_start ])
                 val = str(val_start[ : val_end - val_start ])
