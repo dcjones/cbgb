@@ -62,6 +62,8 @@ void filter_by_id(const char* fn, hash_table* T)
         exit(1);
     }
 
+    fputs(fin->header->text, stdout);
+
     bam1_t* b = bam_init1();
     uint32_t n = 0;
 
