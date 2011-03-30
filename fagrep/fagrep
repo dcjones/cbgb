@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+
+import Bio.SeqIO
+import argparse
+import re
+import ushuffle
+import time
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('pattern', type = str)
+    ap.add_argument('seq_fn', metavar = 'seq.fa', type = str)
+    ap.add_argument('-k', metavar = 'k', default = None, type = int,
+                    help = 'shuffle each sequence, preseing k-mer frequency')
+    ap.add_argument('-v', '--invert-match', action = 'store_true', default = False)
+
+    global args
+    args = ap.parse_args()
+
+
+    if args.k is not None:
+        ushuffle.seed(long(100 * time.time()) % (2 ** 32))
+
+
+    pat = re.compile(args.pattern)
+
+    for seq in Bio.SeqIO.parse(args.seq_fn, 'fasta'):
+        s = str(seq)
+        if args.k is not None: s = ushuffle.shuffle(s, k = args.k)
+        mat = pat.search(s)
+
+        if args.invert_match != (mat is not None):
+            print seq.id
+
+
+if __name__ == '__main__': main()
+
+

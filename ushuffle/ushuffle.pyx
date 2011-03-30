@@ -1,12 +1,20 @@
 
 from libc.stdlib cimport malloc, free
-
 import sys
+
+
+cdef extern from "stdlib.h":
+    void srandom(unsigned int seed)
 
 
 cdef extern from 'ushuffle.h':
     void c_shuffle  "shuffle"  (char *s, char *t, int l, int k)
 
+
+
+
+def seed(long s):
+    srandom(s)
 
 
 def shuffle(bytes s, k = 2):
