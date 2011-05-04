@@ -40,7 +40,8 @@ cdef class Faidx:
 
 
     def __dealloc__( self ):
-        fai_destroy( self.fai )
+        if self.fai != NULL:
+            fai_destroy( self.fai )
 
 
     def fetch( self, seqname, start, end, strand = '+' ):
