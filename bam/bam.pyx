@@ -336,9 +336,11 @@ cdef class Bam:
 
         cdef bam_iter_t it = bam_iter_query( self.reads_index, bam_tid, bam_start, bam_end )
 
-        cdef bam1_t* read = bam_init1()
-
         xs = np.zeros( end-start+1, dtype=np.float )
+
+        if it == NULL: return xs
+
+        cdef bam1_t* read = bam_init1()
 
         while bam_iter_read( self.reads_f.x.bam, it, read ) >= 0:
             if strand is not None and strand != bam1_strand(read): continue
@@ -371,6 +373,8 @@ cdef class Bam:
             return 0
 
         cdef bam_iter_t it = bam_iter_query( self.reads_index, bam_tid, bam_start, bam_end )
+
+        if it == NULL: return 0
 
         cdef bam1_t* read = bam_init1()
 

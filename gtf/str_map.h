@@ -18,13 +18,13 @@ extern "C" {
 #include <stdint.h>
 
 
-typedef struct hashed_value_
+typedef struct str_map_pair_
 {
     char*    key;
     size_t   keylen;
     void*    value;
 
-    struct hashed_value_* next;
+    struct str_map_pair_* next;
 } str_map_pair;
 
 
