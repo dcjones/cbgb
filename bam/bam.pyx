@@ -222,15 +222,19 @@ cdef class BamIter:
     cdef bam_iter_t it
     cdef Bam bam
     cdef int strand
+    cdef int mate
 
     def __cinit__( self, Bam bam, \
-                   chrom=None, start=None, end=None, strand=None ):
+                   chrom=None, start=None, end=None,
+                   strand=None, mate = 1 ):
 
         cdef int bam_tid, bam_start, bam_end
 
         if   strand == '+' or strand == 0: self.strand = 0
         elif strand == '-' or strand == 1: self.strand = 1
         else: self.strand = -1
+
+        self.mate = mate
 
         if chrom is not None:
             if start is None: start = 0
@@ -272,6 +276,9 @@ cdef class BamIter:
             if m <= 0:
                 raise StopIteration
 
+            if self.mate == 1 and read.b.core.flag & BAM_FREAD2: continue
+            if self.mate == 2 and read.b.core.flag & BAM_FREAD1: continue
+
             if self.strand == -1 or bam1_strand(read.b) == self.strand:
                 break
 
@@ -312,7 +319,8 @@ cdef class Bam:
         samclose( self.reads_f )
 
 
-    def reads( self, chrom = None, start = None, end = None, strand = None ):
+    def reads( self, chrom = None, start = None, end = None,
+                     strand = None, mate = 1 ):
         '''
         Iterate through all the reads, or if (chrom, start, end, strand) are
         specified, all the reads that overlap that particular region.

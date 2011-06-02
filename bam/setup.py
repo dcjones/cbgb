@@ -23,6 +23,7 @@ samtools_src = \
 ext_modules = [Extension(name          = 'bam',
                          sources       = ['bam.pyx'] + samtools_src,
                          include_dirs  = ['samtoools'],
+                         libraries     = ['z'],
                          define_macros = [('_USE_KNETFILE', None),
                                           ('_LARGEFILE64_SOURCE', None),
                                           ('_FILE_OFFSET_BITS', '64')])]
