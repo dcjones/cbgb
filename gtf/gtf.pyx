@@ -112,6 +112,7 @@ cdef class gtf_row:
         self.start   = row.start
         self.end     = row.end
         self.score   = row.score
+        self.strand  = row.strand
         self.frame   = row.frame
 
         self.attributes.clear()

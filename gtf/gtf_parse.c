@@ -428,7 +428,7 @@ bool gtf_next(gtf_file_t* f, gtf_row_t* r)
                 
 
             default:
-                fputs("Inexplicable error in the ngram parser.\n", stderr);
+                fputs("Inexplicable error in the gtf parser.\n", stderr);
                 exit(1);
         }
 

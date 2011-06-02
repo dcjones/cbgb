@@ -19,9 +19,10 @@ cdef extern from 'stdlib.h':
 
 cdef extern from 'stdint.h':
     ctypedef unsigned long long uint64_t
-    ctypedef unsigned int  uint32_t
-    ctypedef signed int    int32_t
-    ctypedef unsigned char uint8_t
+    ctypedef unsigned int       uint32_t
+    ctypedef unsigned short     uint16_t
+    ctypedef signed int         int32_t
+    ctypedef unsigned char      uint8_t
 
 
 cdef extern from 'samtools/sam.h':
@@ -92,6 +93,9 @@ cdef extern from 'samtools/sam.h':
     uint32_t BAM_CIGAR_MASK
     uint32_t BAM_CIGAR_SHIFT
     #uint8_t BAM_CMATCH
+
+    uint16_t BAM_FREAD1
+    uint16_t BAM_FREAD2
 
 
 
@@ -321,7 +325,7 @@ cdef class Bam:
         return self.reads()
 
 
-    def counts( self, chrom, start, end, strand=None ):
+    def counts( self, chrom, start, end, strand=None, mate = 1):
 
         if strand == '+': strand = 0
         if strand == '-': strand = 1
@@ -344,6 +348,9 @@ cdef class Bam:
 
         while bam_iter_read( self.reads_f.x.bam, it, read ) >= 0:
             if strand is not None and strand != bam1_strand(read): continue
+
+            if mate == 1 and read.core.flag & BAM_FREAD2: continue
+            if mate == 2 and read.core.flag & BAM_FREAD1: continue
 
             if bam1_strand(read) == 0:
                 i = read.core.pos
