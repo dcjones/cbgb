@@ -58,6 +58,7 @@ cdef extern from 'samtools/sam.h':
         int32_t pos
         int32_t n_cigar
         int32_t l_qseq
+        uint16_t flag
 
         pass
 
