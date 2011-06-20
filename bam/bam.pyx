@@ -1,10 +1,4 @@
 
-
-'''
-A function to build numpy arrays of read coverage over a given interval.
-'''
-
-
 import numpy as np
 from sys                import stdout, stderr, stdin
 from Bio.Seq            import Seq, reverse_complement
