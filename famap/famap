@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+
+'''
+Run a command on every sequence in a fasta file, in parelell.
+'''
+
+import subprocess
+import argparse
+import shlex
+import multiprocessing
+import Bio.SeqIO as SeqIO
+import sqlite3
+from functools import partial
+
+def runcmd(cmd, seq):
+    p = subprocess.Popen(
+            cmd,
+            stdin  = subprocess.PIPE,
+            stdout = subprocess.PIPE)
+
+    (out, err) = p.communicate(str(seq.seq))
+
+    return (seq.id, out)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('-p', '--processes', type = int,
+                    default = multiprocessing.cpu_count())
+    ap.add_argument('-o', '--out', default = 'famap.db')
+    ap.add_argument('cmd')
+    ap.add_argument('fin', metavar = 'input.fa',
+                    type = argparse.FileType(mode = 'r'))
+
+    args = ap.parse_args()
+    cmd = shlex.split(args.cmd)
+
+    db = sqlite3.connect(args.out)
+    cu = db.cursor()
+    cu.execute('create table map (key string, val string)')
+
+    p = multiprocessing.Pool(args.processes)
+
+    f = partial(runcmd, cmd)
+    proc = p.imap_unordered(f, SeqIO.parse(args.fin, 'fasta'), chunksize = 1)
+    for (seqname, result) in proc:
+        cu.execute('insert into map values (?, ?)', (seqname, result))
+
+    db.close()
+
+
+
+if __name__ == '__main__': main()
+
+
+
+
