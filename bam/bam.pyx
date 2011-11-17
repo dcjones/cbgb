@@ -158,6 +158,11 @@ cdef class Read:
     def __dealloc__( self ):
         bam_destroy1( self.b )
 
+    property seqname:
+        def __get__(self):
+        self.b.core.tid
+        pass
+
     property strand:
         def __get__( self ):
             return int(bam1_strand(self.b))
