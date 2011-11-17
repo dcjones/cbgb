@@ -120,17 +120,23 @@ int main(int argc, char* argv[])
 
     count = 0;
 
-    while (fastq_next(fq1, read1)) {
-        if (reads2_fn) fastq_next(fq2, read2);
-
-        if (hattrie_tryget(ids, read1->id1.s, read1->id1.n) == 0) {
-
-            if (++count % 100000 == 0) {
-                printf("\t%zu reads.\n", count);
+    if (reads2_fn) {
+        while (fastq_next(fq1, read1) && fastq_next(fq2, read2)) {
+            /* using 'n - 2' to ignore the trailing '/1' or '/2' in paired end
+             * reads. This is a bit platform specific. */
+            if (hattrie_tryget(ids, read1->id1.s, read1->id1.n - 2) == 0) {
+                if (++count % 100000 == 0) printf("\t%zu reads.\n", count);
+                fastq_print(fout1, read1);
+                fastq_print(fout2, read2);
             }
-
-            fastq_print(fout1, read1);
-            if (reads2_fn) fastq_print(fout2, read2);
+        }
+    }
+    else {
+        while (fastq_next(fq1, read1)) {
+            if (hattrie_tryget(ids, read1->id1.s, read1->id1.n) == 0) {
+                if (++count % 100000 == 0) printf("\t%zu reads.\n", count);
+                fastq_print(fout1, read1);
+            }
         }
     }
 
