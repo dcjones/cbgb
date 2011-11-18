@@ -43,20 +43,11 @@ def parse_bed( bed_f ):
     return rows
 
 
-def min_exp_str( a, b ):
-    a_exp = int(re.search( r'e([+-]\d+)', a ).group(1))
-    b_exp = int(re.search( r'e([+-]\d+)', b ).group(1))
-
-    if   a_exp < b_exp: return a
-    elif a_exp > b_exp: return b
-
-    a_part = float(re.search( r'([+-][\.\d]+)', a ).group(1))
-    b_part = float(re.search( r'([+-][\.\d]+)', b ).group(1))
-
-    if   a_part < b_part: return a
-    elif a_part > b_part: return b
-
-    return a
+def max_exp_str( a, b ):
+    if float(a) > float(b):
+        return a
+    else:
+        return b
 
 
 def merge_bed_rows( row1, row2 ):
@@ -70,7 +61,7 @@ def merge_bed_rows( row1, row2 ):
                     start   = min(row1.start,row2.start),
                     end     = max(row1.end,row2.end),
                     name    = name,
-                    score   = min_exp_str(row1.score,row2.score),
+                    score   = max_exp_str(row1.score,row2.score),
                     strand  = row1.strand,
                     extra   = [] )
 
