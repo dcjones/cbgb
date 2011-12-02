@@ -1,9 +1,8 @@
 /*
- * gtf_parse: parse the shit out of GTF files.
+ * gtf_parse: parse the absolute shit out of GTF files.
  *
  * Daniel C. Jones <dcjones@cs.washington.edu>
  * 2011.04.29
- *
  *
  */
 

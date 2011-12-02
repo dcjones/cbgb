@@ -41,8 +41,8 @@ void str_free(str_t* s)
 static void str_expand(str_t* s)
 {
     s->size *= 2;
-    realloc_or_die(s->s, s->size);
-    memset(s->s + s->size / 2, '\0', s->size);
+    s->s = realloc_or_die(s->s, s->size);
+    memset(s->s + s->size / 2, '\0', s->size / 2);
 }
 
 
@@ -62,7 +62,7 @@ void str_copy(str_t* dest, str_t* src)
 {
     while (dest->size < src->n + 1) str_expand(dest);
     str_clear(dest);
-    memcpy(dest->s, src->s, src->n);
+    memcpy(dest->s, src->s, src->n + 1);
     dest->n = src->n;
 }
 
@@ -271,7 +271,7 @@ bool gtf_next(gtf_file_t* f, gtf_row_t* r)
 
                         case 5:
                             if (field->n == 1 && field->s[0] == '.') {
-                                r->score = NAN;
+                                r->score = 0;
                             }
                             else {
                                 r->score = strtod(field->s, &endptr);

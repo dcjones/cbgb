@@ -47,18 +47,20 @@ for row in gtf_file(fn):
 
 
 # use only unique pre-mrnas (that are spliced)
-S = set()
+S = defaultdict(set)
 for (tid, t) in T.iteritems():
-    if t.n > 1:
-        S.add((t.gene_id, t.seqname, t.strand, t.start, t.end))
+    if t.n <= 1: continue
+    key = (t.gene_id, t.seqname, t.strand, t.start, t.end)
+    S[key].add(tid)
 
 
 
 gtf = '{seqname}\t{source}\t{feature}\t{start}\t{end}\t{score}\t' \
-      '{strand}\t{frame}\tgene_id "{gene_id}"; transcript_id "{transcript_id}";\n'
+      '{strand}\t{frame}\tgene_id "{gene_id}"; transcript_id "{transcript_id}";' \
+      ' spliced_transcript_ids "{spliced_transcript_ids}";\n'
 gene_pre_count = defaultdict(lambda: 1)
 
-for (gid, seqname, strand, start, end) in S:
+for ((gid, seqname, strand, start, end), tids) in S.iteritems():
 
     transcript_id = '{gene_id}.pre-mrna.{k:03d}'.format(
                         gene_id = gid,
@@ -75,7 +77,8 @@ for (gid, seqname, strand, start, end) in S:
         strand  = strand,
         frame   = '.',
         gene_id = gid,
-        transcript_id = transcript_id))
+        transcript_id = transcript_id,
+        spliced_transcript_ids = ','.join(tids)))
 
 
 
