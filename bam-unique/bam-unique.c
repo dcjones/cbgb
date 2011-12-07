@@ -29,13 +29,37 @@ hash_table* hash_ids(const char* fn)
 
     uint32_t n = 0;
 
+    char* qname = NULL;
+    size_t qname_size = 0;
+
     while (samread(f, b) >= 0) {
         if (++n % 1000000 == 0) {
             fprintf(stderr, "\t%d reads\n", n);
         }
 
-        inc_hash_table(T, bam1_qname(b), b->core.l_qname);
+        if (qname_size < b->core.l_qname + 3) {
+            qname_size = b->core.l_qname + 3;
+            qname = realloc(qname, qname_size);
+        }
+
+        memcpy(qname, bam1_qname(b), b->core.l_qname);
+
+        if (b->core.flag & BAM_FREAD2) {
+            qname[b->core.l_qname]     = '/';
+            qname[b->core.l_qname + 1] = '2';
+            qname[b->core.l_qname + 2] = '\0';
+        }
+        else {
+            qname[b->core.l_qname]     = '/';
+            qname[b->core.l_qname + 1] = '1';
+            qname[b->core.l_qname + 2] = '\0';
+        }
+
+
+        inc_hash_table(T, qname, b->core.l_qname + 2);
     }
+
+    free(qname);
 
     bam_destroy1(b);
     samclose(f);
@@ -67,15 +91,39 @@ void filter_by_id(const char* fn, hash_table* T)
     bam1_t* b = bam_init1();
     uint32_t n = 0;
 
+    char* qname = NULL;
+    size_t qname_size = 0;
+
     while (samread(fin, b) >= 0) {
         if (++n % 1000000 == 0) {
             fprintf(stderr, "\t%d reads\n", n);
         }
 
-        if (get_hash_table(T, bam1_qname(b), b->core.l_qname) == 1) {
+
+        if (qname_size < b->core.l_qname + 3) {
+            qname_size = b->core.l_qname + 3;
+            qname = realloc(qname, qname_size);
+        }
+
+        memcpy(qname, bam1_qname(b), b->core.l_qname);
+
+        if (b->core.flag & BAM_FREAD2) {
+            qname[b->core.l_qname]     = '/';
+            qname[b->core.l_qname + 1] = '2';
+            qname[b->core.l_qname + 2] = '\0';
+        }
+        else {
+            qname[b->core.l_qname]     = '/';
+            qname[b->core.l_qname + 1] = '1';
+            qname[b->core.l_qname + 2] = '\0';
+        }
+
+        if (get_hash_table(T, qname, b->core.l_qname + 2) == 1) {
             samwrite(fout, b);
         }
     }
+
+    free(qname);
 
     bam_destroy1(b);
     samclose(fout);
