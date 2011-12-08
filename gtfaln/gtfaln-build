@@ -1,0 +1,93 @@
+#!/usr/bin/env python
+
+'''
+gtfaln-build
+------------
+A program to build bowtie indexes in order to align directly to transcripts.
+'''
+
+import argparse
+import subprocess
+from collections import defaultdict
+from gtf         import gtf_file
+from Bio         import SeqIO
+from sys         import stdout, stderr, stdin
+
+ap = argparse.ArgumentParser()
+ap.add_argument('genes_fn',  metavar = 'genes.gtf')
+ap.add_argument('genome_fn', metavar = 'genome.fa')
+ap.add_argument('name', metavar = 'name')
+
+args = ap.parse_args()
+
+
+class transcript:
+    '''
+    A simple transcript representation.
+    '''
+
+    def __init__(self):
+        self.transcript_id = None
+        self.seqname       = None
+        self.strand        = None
+        self.exons         = []
+
+    def add_row(self, row):
+        if row.feature != 'exon': return
+
+        if self.seqname is None: self.seqname = row.seqname
+        if self.strand is None: self.strand = row.strand
+        if self.transcript_id is None: self.transcript_id = row.attributes['transcript_id']
+
+        self.exons.append((row.start, row.end))
+
+    def __cmp__(self, other):
+        return cmp((self.seqname, self.strand, self.start, self.end),
+                (other.seqname, other.strand, other.start, other.end))
+
+
+# Parse transcripts
+
+stdout.write('parsing GTF ...\n')
+T = defaultdict(transcript)
+for row in gtf_file(args.genes_fn):
+    T[row.attributes['transcript_id']].add_row(row)
+stdout.write('done. ({0} transcripts read)\n'.format(len(T)))
+
+T_ = defaultdict(list)
+for t in T.itervalues():
+    T_[t.seqname].append(t)
+T = T_
+
+
+
+# Read/assemble sequences
+
+header_out = open('{0}.header.sam'.format(args.nam), 'w')
+header_out.write('@HD	VN:1.0	SO:unsorted\n')
+
+stdout.write('reading sequence ...\n')
+fa_out_fn = '{0}.fa'.format(args.name)
+fa_out = open(fa_out_fn, 'w')
+for seqrec in SeqIO.parse(args.genome_fn, 'fasta'):
+    stdout.write('\t{0}\n'.format(seqrec.name))
+    header_out.write('@SQ\tSN:{seqname}\tLN:{seqlen}\n'.format(
+                        seqname = seqrec.name,
+                        seqlen  = len(seqrec)))
+
+
+    for t in T[seqrec.name]:
+        seq = ''
+        for (start, end) in sorted(t.exons):
+            seq += seqrec[(start-1):end].seq.tostring()
+        fa_out.write('>{0}\n'.format(t.transcript_id))
+        fa_out.write('{0}\n\n'.format(seq))
+fa_out.close()
+
+
+# Run bowtie-build
+stdout.write('running bowtie-build ...\n')
+subprocess.call(['bowtie-build', fa_out_fn, args.name])
+stdout.write('done.\n')
+
+

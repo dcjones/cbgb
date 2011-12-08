@@ -1,0 +1,142 @@
+#!/usr/bin/env python
+
+'''
+gtfaln-unpack
+-------------
+A program to convert alignments in transcript coordinates to alignments in
+genome coordinates.
+'''
+
+
+import argparse
+import pipes
+from tempfile    import NamedTemporaryFile
+from collections import defaultdict, namedtuple
+from sys         import stdout, stderr, stdin
+from gtf         import gtf_file
+
+ap = argparse.ArgumentParser()
+ap.add_argument('genes_fn',  metavar = 'genes.gtf')
+ap.add_argument('header_fn', metavar = 'header.sam')
+ap.add_argument('aln_fn', metavar = 'input.sam')
+ap.add_argument('out_fn', metavar = 'output.sam')
+
+args = ap.parse_args()
+
+
+
+class transcript:
+    '''
+    A simple transcript representation.
+    '''
+
+    def __init__(self):
+        self.transcript_id = None
+        self.seqname       = None
+        self.strand        = None
+        self.exons         = []
+
+    def add_row(self, row):
+        if row.feature != 'exon': return
+
+        if self.seqname is None: self.seqname = row.seqname
+        if self.strand is None: self.strand = row.strand
+        if self.transcript_id is None: self.transcript_id = row.attributes['transcript_id']
+
+        self.exons.append((row.start, row.end))
+
+    def __cmp__(self, other):
+        return cmp((self.seqname, self.strand, self.start, self.end),
+                (other.seqname, other.strand, other.start, other.end))
+
+
+# Parse transcripts
+
+stdout.write('parsing GTF ...\n')
+T = defaultdict(transcript)
+for row in gtf_file(args.genes_fn):
+    T[row.attributes['transcript_id']].add_row(row)
+stdout.write('done. ({0} transcripts read)\n'.format(len(T)))
+
+for t in T.itervalues(): t.exons.sort()
+
+
+# Read/correct alignments
+
+fout_tmp = NamedTemporaryFile()
+pipe = pipes.Template()
+pipe.append('sort -u -S 2G', '--')
+fout = pipe.open(fout_tmp.name, 'w')
+
+samfmt = \
+    '{rid}\t{flag}\t{seqname}\t{pos}\t{v4}\t{cigar}\t{v6}\t{mpos}\t{isize}\t{seq}\t{qual}\t{v11}\t{v12}\n'
+
+
+
+def adjust(tpos, l, t):
+    gpos  = None
+    cigar = ''
+
+    off = 0
+    for (i, (start, end)) in enumerate(t.exons):
+        off += end - start + 1
+        if tpos < off:
+            if gpos is None: gpos = end - (off - tpos)
+
+            oplen = min(l, off - tpos)
+            cigar += '{0}M'.format(oplen)
+            l     -= oplen 
+            tpos  += oplen
+
+            if tpos > 0 and l > 0:
+                if i >= len(t.exons) - 1:
+                    print((off, tpos, l, t.exons))
+
+                assert(i < len(t.exons) - 1)
+                cigar += '{0}N'.format(t.exons[i + 1][0] - end - 1)
+
+        if l == 0: break
+
+    return (gpos + 1, cigar)
+
+
+f = stdin if args.aln_fn == '-' else open(args.aln_fn)
+for line in f:
+    if line[0] == '@': continue
+
+    row = line.strip('\n').split('\t')
+    if row[2] == '*': continue 
+
+    l = len(row[9])        # read length
+    t = T[row[2]]          # transcript
+    tpos = int(row[3]) - 1 # transcript-coordinate position
+
+    (gpos, cigar) = adjust(tpos, l, t)
+    (mgpos, _)    = adjust(int(row[7]), 1, t)
+
+
+    fout.write(samfmt.format(
+        rid     = row[0],
+        flag    = row[1],
+        seqname = t.seqname,
+        pos     = gpos,
+        v4      = row[4],
+        cigar   = cigar,
+        v6      = row[6],
+        mpos    = mgpos,
+        isize   = row[8],
+        seq     = row[9],
+        qual    = row[10],
+        v11     = row[11],
+        v12     = row[12]))
+
+fout.close()
+
+fout = open(args.out_fn, 'w')
+for line in open(args.header_fn):
+    fout.write(line)
+
+for line in open(fout_tmp.name):
+    fout.write(line)
+
+
