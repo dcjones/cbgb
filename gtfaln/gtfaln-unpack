@@ -65,7 +65,7 @@ for t in T.itervalues(): t.exons.sort()
 
 fout_tmp = NamedTemporaryFile()
 pipe = pipes.Template()
-pipe.append('sort -u -S 2G', '--')
+pipe.append('sort -k1,8 -u -S 2G', '--')
 fout = pipe.open(fout_tmp.name, 'w')
 
 samfmt = \

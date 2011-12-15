@@ -1,0 +1,215 @@
+#!/usr/bin/env python
+
+
+'''
+transcript_stats
+----------------
+
+Collect a whole bunch of statistics regarding trancripts.
+
+'''
+
+import argparse
+import numpy as np
+import re
+from gtf         import gtf_file
+from Bio         import SeqIO
+from sys         import stdout, stderr, stdin
+from collections import defaultdict
+from itertools   import izip
+
+tc_pat     = re.compile(r'(TAG|TAA|TGA)')
+tc_pat_rev = re.compile(r'(CTA|TTA|TCA)')
+
+ap = argparse.ArgumentParser()
+ap.add_argument('genes_fn',  metavar = 'genes.gtf')
+ap.add_argument('genome_fn', metavar = 'genome.fasta')
+args = ap.parse_args()
+
+
+class transcript:
+    '''
+    A crude representation of a transcript.
+    '''
+
+    def __init__(self):
+        self.transcript_id = None
+        self.seqname       = None
+        self.strand        = None
+        self.start_codon   = None
+        self.start         = None
+        self.end           = None
+        self.exons         = []
+
+    def add_row(self, row):
+        if row.feature == 'start_codon':
+            self.start_codon = row.start
+
+
+        if row.feature != 'exon': return
+
+        if self.transcript_id is None: self.transcript_id = row.attributes['transcript_id']
+        if self.seqname is None: self.seqname = row.seqname
+        if self.strand is None: self.strand = row.strand
+
+        self.exons.append((row.start, row.end))
+
+        if self.start is None or self.start > row.start: self.start = row.start
+        if self.end is None or self.end < row.end: self.end = row.end
+
+
+    def get_introns(self):
+        starts = [v + 1 for (u, v) in self.exons[:-1]]
+        ends   = [u - 1 for (u, v) in self.exons[1:]]
+        return zip(starts, ends)
+
+
+    def __cmp__(self, other):
+        return cmp((self.seqname, self.strand, self.start, self.end),
+                (other.seqname, other.strand, other.start, other.end))
+
+
+    def output_stats(self, seq):
+        self.exons.sort()
+
+        # coding
+        coding = 'F' if self.start_codon is None else 'T'
+
+        introns = self.get_introns()
+
+        # number of introns
+        intron_cnt = len(introns)
+
+        # total intron length
+        intron_lens = [v - u + 1 for (u, v) in introns]
+        intronic_len = sum(intron_lens)
+
+        # median intron length
+        if len(introns) > 0:
+            median_intron_len = np.median(intron_lens)
+        else:
+            median_intron_len = 'NA'
+
+        # terminal intron length
+        if len(introns) > 0:
+            if t.strand == '+':
+                (u, v) = introns[0]
+            else:
+                (u, v) = introns[-1]
+
+            term_intron_len = v - u + 1
+        else:
+            term_intron_len = 'NA'
+
+
+        # utr lengths
+        x0 = self.exons[0]
+        x1 = self.exons[-1]
+        if self.strand == '-': (x0, x1) = (x1, x0)
+
+        five_prime_utr_len  = x0[1] - x0[0] + 1
+        three_prime_utr_len = x1[1] - x1[0] + 1
+
+        # total exon length
+        exon_lens = [v - u + 1 for (u, v) in self.exons]
+        exonic_len = sum(exon_lens)
+
+        # median exon length
+        median_exon_len = np.median(exon_lens)
+
+        # exonic GC content
+        n_cnt = 0
+        gc_cnt = 0
+        for (u, v) in self.exons:
+            xs = seq[u:v]
+            gc_cnt += sum(x == 'G' or x == 'C' for x in xs)
+            n_cnt  += sum(x == 'N' for x in xs)
+
+        exonic_gc = float(gc_cnt) / (exonic_len - n_cnt)
+
+        # intronic GC content and stop codons
+        if len(introns) > 0:
+            intronic_tc_cnt = 0
+            tc_intron_cnt = 0
+            n_cnt = 0
+            gc_cnt = 0
+            for (u, v) in introns:
+                xs = seq[u:v]
+                gc_cnt += sum(x == 'G' or x == 'C' for x in xs)
+                n_cnt  += sum(x == 'N' for x in xs)
+
+                if t.strand == '+':
+                    k = len(tc_pat.findall(xs))
+                else:
+                    k = len(tc_pat_rev.findall(xs))
+                intronic_tc_cnt += k
+                tc_intron_cnt += 1 if k > 0 else 0
+
+            intronic_gc = float(gc_cnt) / (intronic_len - n_cnt)
+        else:
+            intronic_gc     = 'NA'
+            intronic_tc_cnt = 'NA'
+            tc_intron_cnt   = 'NA'
+
+        attrs = map(str,
+                [self.transcript_id,
+                 coding,
+                 intron_cnt,
+                 intronic_len,
+                 median_intron_len,
+                 term_intron_len,
+                 five_prime_utr_len,
+                 three_prime_utr_len,
+                 exonic_len,
+                 median_exon_len,
+                 exonic_gc,
+                 intronic_gc,
+                 intronic_tc_cnt,
+                 tc_intron_cnt])
+
+        print('\t'.join(attrs))
+
+
+stderr.write('parsing gtf ...')
+T = defaultdict(transcript)
+for row in gtf_file(args.genes_fn):
+    T[row.attributes['transcript_id']].add_row(row)
+stderr.write(' done. ({0} transcripts)\n'.format(len(T)))
+
+T_ = defaultdict(list)
+for t in T.itervalues():
+    T_[t.seqname].append(t)
+T = T_
+
+
+
+
+labels = ['transcript_id',
+          'defined_start_codon',
+          'intron_count',
+          'intronic_length',
+          'median_intron_length',
+          'terminal_intron_length',
+          'five_prime_utr_length',
+          'three_prime_utr_length',
+          'exonic_length',
+          'median_exonic_length',
+          'exonic_gc',
+          'intronic_gc',
+          'intronic_tc_count',
+          'tc_intron_count']
+
+stderr.write('reading sequence ...\n')
+print('\t'.join(labels))
+for seqrec in SeqIO.parse(args.genome_fn, 'fasta'):
+    stderr.write('\t{0}\n'.format(seqrec.name))
+    seq = seqrec.seq.tostring().upper()
+    for t in T[seqrec.name]:
+        t.output_stats(seq)
+
+stderr.write('done.\n');
+
+
+
+
+
