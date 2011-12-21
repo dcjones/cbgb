@@ -120,11 +120,21 @@ int main(int argc, char* argv[])
 
     count = 0;
 
+    char* s;
+    char* t;
+    size_t idlen;
+
     if (reads2_fn) {
         while (fastq_next(fq1, read1) && fastq_next(fq2, read2)) {
-            /* using 'n - 2' to ignore the trailing '/1' or '/2' in paired end
-             * reads. This is a bit platform specific. */
-            if (hattrie_tryget(ids, read1->id1.s, read1->id1.n - 2) == 0) {
+            s = strchr(read1->id1.s, '/');
+            t = strchr(read1->id1.s, ' ');
+            if (s && t) idlen = (s < t ? s : t) - read1->id1.s;
+            else if (s) idlen = s - read1->id1.s;
+            else if (t) idlen = t - read1->id1.s;
+            else        idlen = read1->id1.n;
+
+
+            if (hattrie_tryget(ids, read1->id1.s, idlen) == 0) {
                 if (++count % 100000 == 0) printf("\t%zu reads.\n", count);
                 fastq_print(fout1, read1);
                 fastq_print(fout2, read2);

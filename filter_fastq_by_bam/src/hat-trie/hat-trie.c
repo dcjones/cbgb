@@ -12,8 +12,8 @@
 #include <stdint.h>
 #include <string.h>
 
-/* maximum number of keys that may be stored in a bucket */
-static const size_t MAX_BUCKET_SIZE = 512;
+/* maximum number of keys that may be stored in a bucket before it is burst */
+static const size_t MAX_BUCKET_SIZE = 16384;
 
 static const uint8_t NODE_TYPE_TRIE          = 0x1;
 static const uint8_t NODE_TYPE_PURE_BUCKET   = 0x2;
@@ -47,7 +47,6 @@ typedef struct trie_node_t_
 } trie_node_t;
 
 
-
 /* Create a new trie node with all pointer pointing to the given child (which
  * can be NULL). */
 static trie_node_t* alloc_trie_node(node_ptr child)
@@ -70,10 +69,7 @@ struct hattrie_t_
 };
 
 
-size_t hattrie_size(const hattrie_t* T)
-{
-    return T->m;
-}
+size_t hattrie_size(const hattrie_t* T) { return T->m; }
 
 
 hattrie_t* hattrie_create()
@@ -270,7 +266,7 @@ value_t* hattrie_get(hattrie_t* T, const char* key, size_t len)
     assert(*parent.flag & NODE_TYPE_TRIE);
 
     if (len == 0) return &parent.t->val;
-    node_ptr node = parent.t->xs[(unsigned char) *key];
+    node_ptr node = parent.t->xs[(size_t) *key];
 
     while (*node.flag & NODE_TYPE_TRIE && len > 0) {
         ++key;
@@ -353,7 +349,7 @@ value_t* hattrie_get(hattrie_t* T, const char* key, size_t len)
 }
 
 
-value_t* hattrie_tryget(hattrie_t* T, const char* key, size_t len)
+value_t* hattrie_tryget(const hattrie_t* T, const char* key, size_t len)
 {
     node_ptr parent = T->root;
     assert(*parent.flag & NODE_TYPE_TRIE);
@@ -371,11 +367,8 @@ value_t* hattrie_tryget(hattrie_t* T, const char* key, size_t len)
 
     /* if the key has been consumed on a trie node, use its value */
     if (*node.flag & NODE_TYPE_TRIE) {
-        if (!node.t->has_val) {
-            node.t->has_val = true;
-            ++T->m;
-        }
-        return &node.t->val;
+        if (node.t->has_val) return &node.t->val;
+        else                 return NULL;
     }
     else if (*node.flag & NODE_TYPE_PURE_BUCKET) {
         return ahtable_tryget(node.b, key + 1, len - 1);
