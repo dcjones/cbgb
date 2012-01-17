@@ -90,7 +90,7 @@ def read_genes(genes_fn):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('-n', metavar = 'n', type = int',
+    ap.add_argument('-n', metavar = 'n', type = int,
                     help = 'number of bins', default = 100)
     ap.add_argument('-s', '--stranded', action = 'store_true')
     ap.add_argument('--min-length', default = 1000, type = int)
