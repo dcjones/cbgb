@@ -19,17 +19,19 @@ fn = argv[1]
 
 class transcript:
     def __init__(self):
-        self.strand  = None
-        self.seqname = None
-        self.start   = None
-        self.end     = None
-        self.gene_id = None
-        self.n       = 0
+        self.strand    = None
+        self.seqname   = None
+        self.start     = None
+        self.end       = None
+        self.gene_id   = None
+        self.gene_name = None
+        self.n         = 0
 
     def add_row(self, row):
-        if self.strand  is None: self.strand  = row.strand
-        if self.seqname is None: self.seqname = row.seqname
-        if self.gene_id is None: self.gene_id = row.attributes['gene_id']
+        if self.strand    is None: self.strand    = row.strand
+        if self.seqname   is None: self.seqname   = row.seqname
+        if self.gene_id   is None: self.gene_id   = row.attributes['gene_id']
+        if self.gene_name is None: self.gene_name = row.attributes['gene_name']
 
         if self.start is None or row.start < self.start: self.start = row.start
         if self.end   is None or row.end   > self.end:   self.end = row.end
@@ -50,17 +52,20 @@ for row in gtf_file(fn):
 S = defaultdict(set)
 for (tid, t) in T.iteritems():
     if t.n <= 1: continue
-    key = (t.gene_id, t.seqname, t.strand, t.start, t.end)
-    S[key].add(tid)
+    key = (t.seqname, t.strand, t.start, t.end)
+    S[key].add((tid, t.gene_id, t.gene_name))
 
 
 
 gtf = '{seqname}\t{source}\t{feature}\t{start}\t{end}\t{score}\t' \
-      '{strand}\t{frame}\tgene_id "{gene_id}"; transcript_id "{transcript_id}";' \
+      '{strand}\t{frame}\tgene_id "{gene_id}"; gene_name "{gene_name}"; ' \
+      'transcript_id "{transcript_id}";' \
       ' spliced_transcript_ids "{spliced_transcript_ids}";\n'
 gene_pre_count = defaultdict(lambda: 1)
 
-for ((gid, seqname, strand, start, end), tids) in S.iteritems():
+for (seqname, strand, start, end), ids) in S.iteritems():
+
+    (transcript_ids, gene_ids, gene_names) = zip(*ids)
 
     transcript_id = '{gene_id}.pre-mrna.{k:03d}'.format(
                         gene_id = gid,
@@ -76,7 +81,8 @@ for ((gid, seqname, strand, start, end), tids) in S.iteritems():
         score   = '.',
         strand  = strand,
         frame   = '.',
-        gene_id = gid,
+        gene_id =   gid,
+        gene_name = gene_name,
         transcript_id = transcript_id,
         spliced_transcript_ids = ','.join(tids)))
 

@@ -1,0 +1,6 @@
+
+
+This is a little program to record (and ultimately plot) the read coverage
+across transcript, given a BAM file and a GTF file.
+
+

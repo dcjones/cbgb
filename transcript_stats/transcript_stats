@@ -207,7 +207,7 @@ for seqrec in SeqIO.parse(args.genome_fn, 'fasta'):
     for t in T[seqrec.name]:
         t.output_stats(seq)
 
-stderr.write('done.\n');
+stderr.write('done.\n')
 
 
 

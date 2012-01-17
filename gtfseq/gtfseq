@@ -1,0 +1,71 @@
+#!/usr/bin/env python
+
+from collections import defaultdict
+from sys import stdout, stderr, stdin
+from gtf import gtf_file
+import argparse
+import Bio.SeqIO as SeqIO
+import re
+
+
+ap = argparse.ArgumentParser()
+ap.add_argument('gtf_fn', metavar = 'genes.gtf')
+ap.add_argument('fa_fn', metavar = 'genome.fa')
+args = ap.parse_args()
+
+
+class transcript:
+    '''
+    A simple transcript representation.
+    '''
+
+    def __init__(self):
+        self.transcript_id = None
+        self.seqname       = None
+        self.strand        = None
+        self.exons         = []
+
+    def add_row(self, row):
+        if row.feature != 'exon': return
+
+        if self.seqname is None: self.seqname = row.seqname
+        if self.strand is None: self.strand = row.strand
+        if self.transcript_id is None: self.transcript_id = row.attributes['transcript_id']
+
+        self.exons.append((row.start, row.end))
+
+    def __cmp__(self, other):
+        return cmp((self.seqname, self.strand, self.start, self.end),
+                (other.seqname, other.strand, other.start, other.end))
+
+
+# Parse transcripts
+
+stderr.write('parsing GTF ...\n')
+T = defaultdict(transcript)
+for row in gtf_file(args.gtf_fn):
+    T[row.attributes['transcript_id']].add_row(row)
+stderr.write('done. ({0} transcripts read)\n'.format(len(T)))
+
+T_ = defaultdict(list)
+for t in T.itervalues():
+    T_[t.seqname].append(t)
+T = T_
+
+
+stderr.write('reading sequence ...\n')
+for seqrec in SeqIO.parse(args.fa_fn, 'fasta'):
+    stderr.write('\t{0}\n'.format(seqrec.name))
+
+    for t in T[seqrec.name]:
+        seq = SeqIO.Seq('')
+        for (start, end) in sorted(t.exons):
+            seq += seqrec[(start-1):end].seq
+
+        if t.strand == '-': seq = seq.reverse_complement()
+
+        stdout.write('>{0}\n'.format(t.transcript_id))
+        stdout.write(re.sub(r'(.{,80})', r'\1\n', seq.tostring()))
+        stdout.write('\n')
+
+
