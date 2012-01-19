@@ -95,6 +95,7 @@ if __name__ == '__main__':
     ap.add_argument('-s', '--stranded', action = 'store_true')
     ap.add_argument('--min-length', default = 1000, type = int)
     ap.add_argument('--min-count', default = 25, type = int)
+    ap.add_argument('--gene-list', default = None, type = str, dest = 'gene_list_fn')
     ap.add_argument('genes_fn', metavar = 'genes.gtf')
     ap.add_argument('reads_fn', metavar = 'reads.bam')
     args = ap.parse_args()
@@ -108,6 +109,13 @@ if __name__ == '__main__':
 
     # histogram for the given gene
     ys = np.zeros(args.n)
+
+    # record used genes
+    if args.gene_list_fn is not None:
+        genes_f = open(args.gene_list_fn, 'w')
+    else:
+        genes_f = None
+
 
     for (i, g) in enumerate(genes.itervalues()):
         stderr.write('({i}/{n}) {gene_id}\n'.format(
@@ -144,6 +152,8 @@ if __name__ == '__main__':
 
         ys_sum = sum(ys)
         if ys_sum < args.min_count: continue
+        if genes_f is not None:
+            genes_f.write('{0}\n'.format(g.gene_id))
         xs += ys / ys_sum
 
 
