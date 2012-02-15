@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
                 if (cigar_len < min_splice_length) gapped = true;
                 else                               spliced = true;
             }
-            else perfect = false;
+            else if (cigar_op != BAM_CMATCH)  perfect = false;
 
             if (cigar_op == BAM_CSOFT_CLIP || cigar_op == BAM_CHARD_CLIP) break;
         }
