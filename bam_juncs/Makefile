@@ -1,10 +1,10 @@
 
 
+samtools_obj = $(subst .c,.o, $(shell ls samtools/*.c))
 obj = bam-juncs.o \
-	  $(subst .c,.o, $(shell ls samtools/*.c))
 
 
-all : bam-juncs
+all : bam-juncs bam-gsnap-juncs
 
 CFLAGS=-D_USE_KNETFILE -D_FILE_OFFSET_BITS=64 -g -Wall -O2
 
@@ -12,10 +12,12 @@ CFLAGS=-D_USE_KNETFILE -D_FILE_OFFSET_BITS=64 -g -Wall -O2
 	gcc $(CFLAGS) -c $< -o $@
 
 
-bam-juncs : $(obj)
+bam-juncs : bam-juncs.o $(samtools_obj)
 	gcc -o $@ $^ -lz
 
+bam-gsnap-juncs : bam-gsnap-juncs.o $(samtools_obj)
+	gcc -o $@ $^ -lz
 
 clean :
-	rm -f *.o samtools/*.o bam-juncs
+	rm -f *.o samtools/*.o bam-juncs bam-gsnap-juncs
 
