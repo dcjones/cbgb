@@ -43,6 +43,24 @@ int main(int argc, char* argv[])
             cigar_op  = cigar[j] & BAM_CIGAR_MASK;
             cigar_len = cigar[j] >> BAM_CIGAR_SHIFT;
 
+            /* Print introns */
+            if (cigar_op == BAM_CREF_SKIP) {
+                if (strand == '+') {
+                    printf(">_ %s:%d-%d\n",
+                        seqname,
+                        b->core.pos + off,
+                        b->core.pos + off + cigar_len);
+                }
+                else {
+                    printf(">_ %s:%d-%d\n",
+                        seqname,
+                        b->core.pos + off + cigar_len,
+                        b->core.pos + off);
+                }
+            }
+
+            /* Print splice sites. */
+#if 0
             if (cigar_op == BAM_CREF_SKIP) {
                 if (strand == '+') {
                     printf(">_ %s:%d..%d donor\n",
@@ -65,6 +83,7 @@ int main(int argc, char* argv[])
                         b->core.pos + off + cigar_len - 1);
                 }
             }
+#endif
 
             off += cigar_len;
         }
