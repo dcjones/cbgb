@@ -46,13 +46,13 @@ int main(int argc, char* argv[])
             /* Print introns */
             if (cigar_op == BAM_CREF_SKIP) {
                 if (strand == '+') {
-                    printf(">_ %s:%d-%d\n",
+                    printf(">_ %s:%d..%d\n",
                         seqname,
                         b->core.pos + off,
                         b->core.pos + off + cigar_len);
                 }
                 else {
-                    printf(">_ %s:%d-%d\n",
+                    printf(">_ %s:%d..%d\n",
                         seqname,
                         b->core.pos + off + cigar_len,
                         b->core.pos + off);
